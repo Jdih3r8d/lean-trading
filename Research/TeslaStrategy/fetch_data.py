@@ -31,5 +31,8 @@ new = new.set_index("date")[["open", "high", "low", "close", "volume"]]
 
 df = pd.concat([old[old.index < new.index[0]], new]).sort_index()
 df = df[~df.index.duplicated()]
+# Fila corrupta de Yahoo: el 2018-03-13 repite el open/high/low del día anterior. Valores de otras dos fuentes
+# independientes (Stonks/tickers y willhjw/big_movers), que coinciden entre sí.
+df.loc["2018-03-13", ["open", "high", "low"]] = [22.9947, 23.0080, 22.4176]
 df.to_csv("tsla.csv")
 print(f"{len(df)} sesiones, {df.index[0].date()} .. {df.index[-1].date()}")
