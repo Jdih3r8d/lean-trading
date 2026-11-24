@@ -1,3 +1,6 @@
-tsla.csv
-grid.pkl
+data/*
+!data/tsla_earnings.csv
+study1/tsla.csv
+study1/grid.pkl
 __pycache__/
+*.pkl

@@ -36,8 +36,14 @@ def sim(O, H, L, C, entry, exitsig, side, max_hold, stop, tp, mode, cost):
         d = start
         held = 0
         while d < n:
+            # gap through the take-profit at the open fills at the open (checked before intraday stops)
+            if tp > 0:
+                if side == 1 and O[d] >= tpp:
+                    xpx = O[d]; exited = True
+                elif side == -1 and O[d] <= tpp:
+                    xpx = O[d]; exited = True
             # intraday stop / tp checks
-            if stop > 0:
+            if (not exited) and stop > 0:
                 if side == 1:
                     if O[d] <= sp:
                         xpx = O[d]; exited = True
@@ -83,6 +89,7 @@ def sim(O, H, L, C, entry, exitsig, side, max_hold, stop, tp, mode, cost):
             d += 1
         if not exited:
             xpx = C[n - 1]; xi = n - 1
+            daily[n - 1] -= cost   # mark-to-market exit cost, consistent with the trade ledger
         r = side * (xpx / px - 1) - 2 * cost
         tr[k, 0] = t; tr[k, 1] = xi; tr[k, 2] = r; tr[k, 3] = xi - e
         k += 1

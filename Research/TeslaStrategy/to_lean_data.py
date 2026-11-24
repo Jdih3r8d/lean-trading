@@ -56,7 +56,7 @@ def main(csv_path, ticker, data_root, start=None):
             rows.append((df.date.iloc[i], pf.iloc[i], sf.iloc[i], raw.close.iloc[i]))
     with open(os.path.join(usa, 'factor_files', f'{t}.csv'), 'w') as f:
         for d, p_, s_, ref in rows:
-            f.write(f"{d:%Y%m%d},{p_:.10g},{s_:.10g},{ref:.4f}\n")
+            f.write(f"{d:%Y%m%d},{float(p_)!r},{float(s_)!r},{ref:.4f}\n")
         f.write("20501231,1,1,0\n")
     first = df.date.iloc[0]
     with open(os.path.join(usa, 'map_files', f'{t}.csv'), 'w') as f:
