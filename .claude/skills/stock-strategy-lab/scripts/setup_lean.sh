@@ -15,6 +15,11 @@ if ! command -v dotnet >/dev/null || ! dotnet --list-sdks | grep -q '^10\.'; the
 fi
 dotnet --list-sdks
 (cd "$REPO" && dotnet build QuantConnect.Lean.sln -c Debug -v q -nologo 2>&1 | tail -3)
+if ! command -v python3.11 >/dev/null; then
+  echo "python3.11 not found: install it (apt-get install -y python3.11 python3.11-venv libpython3.11, a PPA may be needed)" >&2
+  echo "or use 'uv python install 3.11'; LEAN's pythonnet needs 3.11 and /usr/lib/x86_64-linux-gnu/libpython3.11.so" >&2
+  exit 1
+fi
 if [ ! -x "$WORK/py311/bin/python" ]; then
   python3.11 -m venv "$WORK/py311"
   "$WORK/py311/bin/python" -m pip install -q "pandas<3" "numpy<2.3"

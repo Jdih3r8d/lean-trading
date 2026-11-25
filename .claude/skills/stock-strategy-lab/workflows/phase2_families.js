@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'stock-lab-families',
+  name: 'stock-lab-phase2-families',
   description: 'Strategy families for one stock researched in parallel, each pipelined into an independent validator that reproduces and tries to refute the claims',
   phases: [
     { title: 'Research', detail: 'one quant researcher per strategy family' },
@@ -7,6 +7,7 @@ export const meta = {
   ],
 }
 
+// Fase 2 of the stock-strategy-lab skill.
 // args: {
 //   lab: '/abs/lab', ticker: 'NVDA',
 //   context: 'what study 1 found, the baseline rules and numbers, buy & hold numbers (plain text)',
@@ -40,7 +41,7 @@ ${CONTEXT}
 
 Method (follow it):
 1. Before testing, write 4-8 hypotheses with an economic rationale to ${LAB}/${key}/HYPOTHESES.md.
-2. Define each parameter grid up front and COUNT every configuration you evaluate (honest trial count).
+2. Define each parameter grid up front and COUNT every configuration you evaluate (honest trial count). Write ${LAB}/${key}/trials.csv with one row per configuration evaluated (columns config,is_sharpe,oos_sharpe) so others can recompute totals and trial-Sharpe dispersion.
 3. Choose parameters on IS only. If a dataset starts later, use an explicit early/late split that keeps at least the last 3 years untouched, and say so.
 4. For your best 1-4 candidates: harness.report at base and stress cost; walk_forward_weights over your grid; shift_permutation_test on OOS (n_perm >= 1000) or random_entry_test for fixed-hold event trades; bootstrap_ci of the average trade; deflated_sharpe with your trial count and measured trial-Sharpe std; a parameter-neighbourhood table; year-by-year returns; exec='close' vs 'open'; one-session-delayed execution; result without the 3 best trades.
 5. Test each candidate (a) standalone, (b) as an overlay or filter on the baseline's modules, (c) as an additional module next to the baseline. Report which use helps.

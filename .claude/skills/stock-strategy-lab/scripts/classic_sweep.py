@@ -100,7 +100,7 @@ pd.set_option('display.max_columns', 40)
 print(f'{len(res)} configurations -> {out}/grid.csv')
 bh = H.buy_and_hold(df)
 for p in ('IS', 'OOS', 'REC'):
-    print(f'buy & hold {p}:', {k: round(v, 3) for k, v in H.perf(bh, *H.PERIODS[p]).items()})
+    print(f'buy & hold {p}:', {k: round(float(v), 3) for k, v in H.perf(bh, *H.PERIODS[p]).items()})
 print(f'mean daily return IS {mu_is:.4%}  OOS {mu_oos:.4%}  (an average trade must beat drift x holding days)')
 sel = res[(res.is_n >= 30) & (res.is_t > 2.0) & (res.is_pf > 1.3)]
 print(f'\nIS-qualified (n>=30, t>2, PF>1.3): {len(sel)} of {len(res)}; of those OOS avg>0: {(sel.oos_avg > 0).mean():.2f}, '
@@ -113,8 +113,8 @@ cols = ['fam', 'params', 'mode', 'is_n', 'is_avg', 'is_win', 'is_sharpe', 'is_md
 trend = res[res.fam.isin(['SMA_trend', 'SMA_cross', 'TSMOM', 'Donchian']) & (res['mode'] == 0)].sort_values('is_sharpe', ascending=False)
 print('\nTrend families, best 15 by IS Sharpe (mode 0):')
 print(trend[cols].head(15).round(3).to_string())
-print('\nTop 20 by IS t-stat (mode 0):')
-print(res[res['mode'] == 0].sort_values('is_t', ascending=False)[cols + ['is_t', 'oos_t', 'oos_exc']].head(20).round(3).to_string())
+print('\nTop 20 by IS t-stat (mode 0, IS n >= 30):')
+print(res[(res['mode'] == 0) & (res.is_n >= 30)].sort_values('is_t', ascending=False)[cols + ['is_t', 'oos_t', 'oos_exc']].head(20).round(3).to_string())
 # overnight / intraday decomposition and calendar
 on = df.open / c.shift() - 1
 intra = c / df.open - 1

@@ -4,11 +4,12 @@ Full write-up and code: `Research/TeslaStrategy/` in this repository; LEAN algor
 `Algorithm.Python/TeslaTrendRegimeEarningsAlgorithm.py` (= assets/reference_lean_algorithm_tsla.py).
 
 ## Timeline and cost
-Study 1 (classic sweep, 6,176 configs) -> reference A+B. Phase 0 (harness audit + data agent, ~30 min, 2 agents) ->
-5 harness bugs fixed, 1 bad data row repaired, QQQ/SPY/VIX/IV/earnings/deliveries/opex data. Phase 1 (7 families x
-(research + validator) = 14 agents, ~85 min with 2 concurrent agents, ~2.8M subagent tokens, 3,401 configs). Lead
-combination (~15 min). Phase 2 (optimizer + 3 skeptics, ~32 min, ~0.9M tokens). LEAN (toolchain ~10 min, runs ~3-5 min
-each). Phase 3 (code review + claims check, ~27 min, ~0.5M tokens). Total wall-clock ~5-6 hours.
+(Numbering of the skill's phases.) Classic sweep (6,176 configs) -> reference A+B. Fase 1 workflow (harness audit +
+data agent, ~30 min, 2 agents) -> 5 harness bugs fixed, 1 bad data row repaired, QQQ/SPY/VIX/IV/earnings/deliveries/opex
+data. Fase 2 (7 families x (research + validator) = 14 agents, ~85 min with 2 concurrent agents, ~2.8M subagent tokens,
+3,401 configs). Fase 3: lead combination (~15 min) + panel (optimizer + 3 skeptics, ~32 min, ~0.9M tokens). Fase 4 LEAN
+(toolchain ~10 min, runs ~3-5 min each). Fase 5 review (code review + claims check, ~27 min, ~0.5M tokens). Total
+wall-clock ~5-6 hours.
 
 ## Outcome
 | Strategy | Sharpe IS / OOS / 2023+ | CAGR all | MDD |

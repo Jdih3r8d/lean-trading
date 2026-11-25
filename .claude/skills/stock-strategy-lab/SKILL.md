@@ -1,232 +1,302 @@
 ---
 name: stock-strategy-lab
-description: Investigación completa y honesta de estrategias de trading para UNA acción (TSLA, NVDA, AAPL, cualquier ticker de EE. UU.) con datos diarios. Consigue y valida datos, audita el motor de backtest, lanza agentes en paralelo por familias de estrategias (volatilidad, opciones/VIX, resultados trimestrales y eventos, régimen de mercado, gestión de posición, patrones, machine learning), cada una con un validador independiente; combina lo que sobrevive, la somete a un panel escéptico, la implementa y verifica en LEAN, y termina explicando al usuario en lenguaje sencillo cuándo comprar, cuándo vender, la rentabilidad media por operación y qué hacer hoy. Úsala siempre que el usuario pida analizar una acción para encontrar una estrategia ganadora, "busca una estrategia para X", "cuándo entrar y cuándo salir de X", backtest de reglas sobre una acción, o repetir para otro ticker el estudio que se hizo con Tesla, aunque no mencione agentes, LEAN ni la palabra skill.
+description: Investigación de varias horas, con subagentes, de una estrategia de trading diaria y robusta para UNA acción de EE. UU. (cualquier ticker) con datos contrastados, motor auditado, barrido de reglas clásicas, 7 familias (volatilidad, opciones/VIX, resultados y eventos, régimen de mercado, gestión de posición, patrones, ML) con validador independiente, panel escéptico, verificación en LEAN y respuesta en lenguaje sencillo (cuándo comprar y vender, rentabilidad por operación, qué hacer hoy). Úsala cuando pidan encontrar, construir o validar una estrategia o reglas de entrada y salida para una acción concreta, en cualquier idioma, p. ej. "analiza NVDA y dime cuándo comprar", "busca una estrategia ganadora para X", "cuándo entrar y salir de X", "find me a trading strategy for AAPL", "repite el estudio de Tesla con MSFT". NO la uses para cotizaciones, noticias, explicar un indicador (RSI, MACD), un único backtest ya definido por el usuario, carteras de muchos activos, cripto, forex, futuros o trading intradía.
 ---
 
 # Laboratorio de estrategias para una acción
 
 Esta skill reproduce, para cualquier acción, el proceso con el que se estudió TSLA en noviembre de 2026. El resultado
-fue una estrategia de tres módulos con un Sharpe fuera de muestra de 1,56 frente a 0,89 de comprar y mantener, verificada
-sesión a sesión en LEAN (ver `references/tsla_case.md`). El valor del proceso no está en una fórmula concreta sino en su
+fue una estrategia de tres módulos con un Sharpe fuera de muestra de 1,56 frente a 0,89 de comprar y mantener,
+verificada sesión a sesión en LEAN (ver `references/tsla_case.md`). El valor no está en una fórmula sino en la
 disciplina:
 
 - datos contrastados;
 - un motor auditado antes de usarlo;
-- parámetros elegidos solo con datos "de entrenamiento" (IS);
+- parámetros elegidos solo con datos de entrenamiento (IS);
 - cada hallazgo reproducido e intentado refutar por otro agente;
 - expectativas recortadas con honestidad;
 - una explicación final que el usuario pueda seguir sin leer código.
 
-`<skill_dir>` es la carpeta que contiene este archivo. Scripts en `<skill_dir>/scripts/`, workflows en
-`<skill_dir>/workflows/`, guías en `<skill_dir>/references/`.
+## Mapa
 
-## Qué esperar antes de empezar
+| Fase | Qué | Quién | Workflow | Tiempo en TSLA |
+|---|---|---|---|---|
+| 0 | Laboratorio y datos de la acción | tú | — | ~30 min |
+| 1 | Auditoría del motor + datos auxiliares ∥ estudio clásico y referencia | 2 agentes ∥ tú | `phase1_audit_data.js` | ~30 min |
+| 2 | Familias de estrategias + validadores | 7 + 7 agentes | `phase2_families.js` | ~85 min |
+| 3 | Combinación + panel de desafío | tú + 4 agentes | `phase3_challenge.js` | ~15 + 32 min |
+| 4 | Implementación y verificación en LEAN | tú | — | ~10 min + 3-5 min/ejecución |
+| 5 | Entregable, revisión final y respuesta | tú + 2 agentes | `phase5_deliverable_review.js` | ~30 min |
 
-El modo completo dura unas 5-6 horas de reloj y usa unos 20-25 subagentes, con 4-5 millones de tokens. Los workflows
-corren como mucho ~2 agentes a la vez en un contenedor de 4 CPU. Díselo al usuario en una línea al empezar y sigue: si
-pidió el estudio, ya lo autorizó. Si quiere algo rápido, usa el **modo rápido**:
+Marcadores (usa siempre rutas absolutas, porque se incrustan en los prompts de los agentes):
 
-- solo las fases 0-2;
-- en la fase 3, solo las familias `events`, `regime` y `vol`;
-- se salta la fase 5 (LEAN);
-- la revisión final se limita al fact-check.
+- `<skill_dir>`: la carpeta de este archivo (scripts en `scripts/`, workflows en `workflows/`, guías en `references/`).
+- `<T>`: el ticker.
+- `<lab>`: `<scratchpad>/lab_<t>`. El scratchpad puede limpiarse; lo que valga se copia al repo en la fase 5.
+- `<repo>`: raíz del repositorio LEAN, la carpeta con `QuantConnect.Lean.sln` y `Algorithm.Python/`. Si la sesión no
+  tiene uno y el usuario quiere LEAN, clónalo con `git clone --depth 1 https://github.com/QuantConnect/Lean`; si no,
+  sáltate la fase 4 y dilo.
+- `<work>`: `<scratchpad>/lean_work`, con el venv, los datos LEAN, las salidas y las revisiones. Nunca dentro del repo.
+- `<Clase>`: nombre del algoritmo y de su archivo, p. ej. `NvdaTrendRegimeAlgorithm`.
+- `<X>`: `<Ticker>Strategy`, la carpeta del entregable dentro de `Research/`.
 
-Pregunta solo lo que no puedas deducir: normalmente basta con el ticker. Responde al usuario en su idioma.
+**Herramienta Workflow.** Las fases 1, 2, 3 y 5 lanzan los scripts de `workflows/` con la herramienta `Workflow`. Si
+no está entre tus herramientas, búscala con `ToolSearch` (`select:Workflow`). Si no existe, ejecuta los mismos prompts
+con subagentes (herramienta Agent):
 
-## Fase 0 · Laboratorio y datos de la acción (tú, en línea)
+- copia el texto de cada `agent(...)` del `.js` y sustituye `${LAB}`, `${T}` y el resto de variables por sus valores;
+- pide la salida con la forma del `schema` correspondiente;
+- respeta el orden: `parallel` significa a la vez; en `pipeline`, el validador de cada familia empieza cuando termina
+  su investigador. Como mucho 2 agentes a la vez.
 
-1. Crea el laboratorio en el scratchpad (no en el repo):
-   `bash <skill_dir>/scripts/new_lab.sh <TICKER> <lab> [is_end] [rec_start]`.
-   - IS (donde se eligen parámetros) debe cubrir aproximadamente la primera mitad de la historia y terminar el 31 de diciembre.
-   - OOS es todo lo posterior.
-   - REC son los últimos ~3 años.
-   - Si la acción tiene poca historia (menos de 8 años), dilo: los resultados serán menos fiables.
-2. Construye `<lab>/data/main.csv` (OHLCV diario ajustado por splits) siguiendo `references/data_sources.md`. Las APIs
-   financieras suelen estar bloqueadas; los espejos CSV en GitHub funcionan. Empalma una fuente larga con una que se
-   actualice a diario y contrasta el solapamiento.
-3. Ejecuta `python3 <skill_dir>/scripts/check_data.py <lab> <otras fuentes...>`: detecta filas corruptas (por ejemplo,
-   open/high/low copiados del día anterior), splits sin ajustar y discrepancias entre fuentes. Repara solo con fuentes
-   realmente independientes y anótalo en `data/DATA_NOTES.md`. También fija `is_start` en `config.json`.
-4. Anota las fechas de split reales de la acción, que se necesitan para LEAN.
-5. Haz 2-3 búsquedas web rápidas de contexto (últimos resultados, noticias, fecha del próximo informe) para la respuesta final.
+## Antes de empezar
 
-## Fase 1 · En paralelo: auditoría, datos auxiliares y estudio clásico
+El modo completo dura unas 5-6 horas de reloj y usa unos 20-25 subagentes, con 4-5 millones de tokens. Si el usuario
+pidió expresamente un estudio completo o a fondo, díselo en una línea y empieza. Si no (p. ej. «analiza NVDA y dime
+cuándo comprar»), pregunta UNA vez y espera: «¿Estudio completo (~5-6 h, ~25 agentes, con verificación en LEAN) o
+rápido (~2-3 h, sin LEAN)?».
 
-Lanza el workflow de la fase 0 en segundo plano:
+**Modo rápido:**
+
+- Fases 0 y 1 completas, sin `setup_lean.sh`.
+- Fase 2 solo con `events`, `regime` y `vol`: `skip: ["implied", "sizing", "patterns", "ml"]`.
+- Fase 3 completa (el panel es la principal defensa contra el sobreajuste), sin `repo` ni `lean_work` en los args.
+- Sin fase 4.
+- Fase 5: README sin la sección LEAN, revisión con `skip_code_review: true` y respuesta final normal.
+
+Pregunta solo lo que no puedas deducir. Responde al usuario en su idioma y cuéntale lo esencial al terminar cada fase,
+en una o dos frases.
+
+## Fase 0 · Laboratorio y datos de la acción (tú)
+
+1. Ejecuta `bash <skill_dir>/scripts/new_lab.sh <T> <lab> [is_end]`.
+   - IS debe cubrir aproximadamente la primera mitad de la historia y terminar el 31 de diciembre; OOS es todo lo
+     posterior y REC son los últimos ~3 años.
+   - Si aún no conoces la historia, créalo sin `is_end`, construye `main.csv` y vuelve a ejecutarlo con el `is_end` que
+     sugiere `check_data.py`. No sobrescribe el harness.
+2. Construye `<lab>/data/main.csv` (date,open,high,low,close,volume) siguiendo `references/data_sources.md`.
+   - Las APIs financieras suelen estar bloqueadas; los espejos CSV de GitHub funcionan.
+   - Contrasta al menos dos fuentes independientes.
+   - Si la acción paga dividendos relevantes (más de ~0,5% al año), haz `main.csv` ajustado también por dividendos,
+     con una columna `adj_factor` (ver esa guía).
+3. Ejecuta `python3 <skill_dir>/scripts/check_data.py <lab> <otras fuentes...>`.
+   - Detecta filas corruptas (p. ej. open/high/low copiados del día anterior), splits sin ajustar y discrepancias.
+   - Las líneas "scale-free" sirven para fuentes con otro ajuste.
+   - Fija `is_start` y avisa si IS u OOS quedan cortos.
+   - Repara solo con fuentes realmente independientes.
+4. Escribe en `<lab>/data/splits.txt` **todas** las fechas de split, con el formato `AAAA-MM-DD:ratio,...`: la primera
+   sesión que ya cotiza dividida, confirmada con precios sin ajustar. NVDA tiene 6. Documenta `main.csv`, sus fuentes,
+   las reparaciones y los splits en `<lab>/data/DATA_NOTES.md`.
+5. Haz 2-3 búsquedas web de contexto: últimos resultados, noticias y fecha del próximo informe.
+
+## Fase 1 · Auditoría y datos auxiliares (agentes) ∥ estudio clásico (tú)
 
 ```
-Workflow({scriptPath: "<skill_dir>/workflows/phase0_audit_data.js",
+Workflow({scriptPath: "<skill_dir>/workflows/phase1_audit_data.js",
           args: {lab: "<lab>", ticker: "<T>", skill_dir: "<skill_dir>",
-                 market_etfs: ["QQQ", "SPY", "<ETF sectorial si aplica, p.ej. SMH, XLE>"],
+                 market_etfs: ["QQQ", "SPY", "<ETF sectorial si aplica, p. ej. SMH o XLE>"],
                  extra_data_goals: "<opcional: eventos propios de la empresa>"}})
 ```
 
-- Un agente audita `harness.py`/`engine.py` con tests sintéticos. El de TSLA encontró 5 errores reales; ya están
-  corregidos, pero audita de todas formas: el código y los datos cambian.
-- Otro agente consigue los datos auxiliares: ETFs de mercado con versión ajustada por dividendos, familia VIX,
-  calendario de resultados con horas de la SEC, eventos, volatilidad implícita y vencimientos de opciones.
+- Un agente audita `harness.py`/`engine.py` con tests sintéticos. En TSLA encontró 5 errores reales, ya corregidos;
+  audita igualmente, porque el código y los datos cambian.
+- Otro agente consigue: ETFs de mercado con versión ajustada por dividendos, familia VIX, calendario de resultados con
+  horas de la SEC, otros eventos, volatilidad implícita y vencimientos de opciones. Añade sus secciones a
+  `DATA_NOTES.md`.
 
 Mientras tanto, tú:
 
-- Ejecuta el estudio clásico: `python3 <skill_dir>/scripts/classic_sweep.py <lab>` (unas 6.000 reglas en segundos).
-  Léelo con las pautas de su docstring. La pregunta clave es si las reglas superan la simple deriva alcista de la acción.
-- Elige la **referencia** (baseline) solo con IS: un módulo de tendencia más uno de reversión/capitulación poco
-  correlacionados, al 50/50, suele ser un buen punto de partida (`harness.trend_capitulation_weights`, re-ajustado en IS).
-- Guarda `data/baseline_weights.csv` (date,weight) y `data/BASELINE.md` con:
-  - las reglas;
-  - las cifras IS/OOS/REC/año actual;
-  - las de comprar y mantener;
-  - lo que no funcionó.
-- Si va a haber LEAN, prepara la cadena en segundo plano: `bash <skill_dir>/scripts/setup_lean.sh <repo> <work>`.
+- Ejecuta `python3 <skill_dir>/scripts/classic_sweep.py <lab>`: unas 6.000 reglas clásicas en segundos. Léelo con las
+  pautas de su docstring; la pregunta clave es si las reglas superan la simple deriva alcista de la acción.
+- Elige la **referencia** solo con IS. Un buen punto de partida es un módulo de tendencia y otro de
+  reversión/capitulación poco correlacionados, al 50/50 (`harness.trend_capitulation_weights`, re-ajustado en IS
+  buscando una meseta, no un pico).
+- Guarda `data/baseline_weights.csv` (date,weight) y `data/BASELINE.md`, con las reglas, las cifras de IS/OOS/REC/año
+  actual, las de comprar y mantener (`perf(buy_and_hold(df), lo, hi)`) y lo que no funcionó.
+- Si habrá LEAN, ejecuta en segundo plano `bash <skill_dir>/scripts/setup_lean.sh <repo> <work>`.
 
-Cuando termine el workflow:
+Al terminar el workflow:
 
-1. Lee los hallazgos de la auditoría y corrige el harness con tests.
-2. Si cambia `engine.py` o `harness.py`, vuelve a ejecutar el estudio clásico.
-3. Revisa `DATA_NOTES.md` y mueve los archivos con errores conocidos a `data/superseded/`.
-4. Actualiza `PROTOCOL.md` si hace falta: el tiempo de publicación de cada dato (p. ej. el VIX cierra a las 16:15 ET),
-   y el aviso de que no se debe usar `superseded/`.
+1. Corrige `<lab>/harness.py`/`engine.py` con tests en `<lab>/audit/`.
+2. Si cambian, vuelve a ejecutar el estudio clásico y regenera la referencia ANTES de las familias.
+3. Mueve los archivos con errores conocidos a `data/superseded/`.
+4. Añade a `PROTOCOL.md` el momento de publicación de cada dato (p. ej. el VIX cierra a las 16:15 ET: solo se puede
+   ejecutar en la apertura siguiente).
+5. Anota las correcciones del harness para proponer al final llevarlas a `<skill_dir>/scripts/`.
 
 ## Fase 2 · Familias de estrategias, cada una con validador
 
 ```
-Workflow({scriptPath: "<skill_dir>/workflows/phase1_families.js",
+Workflow({scriptPath: "<skill_dir>/workflows/phase2_families.js",
           args: {lab: "<lab>", ticker: "<T>",
-                 context: "<resumen del estudio clásico, reglas y cifras de la referencia, comprar y mantener>",
+                 context: "<resumen del estudio clásico; reglas y cifras de la referencia; comprar y mantener>",
                  skip: [], extra_scope: {}}})
 ```
 
-Son 7 familias por defecto (`vol`, `implied`, `events`, `regime`, `sizing`, `patterns`, `ml`), cada una en pipeline con
-un validador que reimplementa las reglas desde el texto, busca *look-ahead* e intenta refutarlas.
+Hay 7 familias por defecto (`vol`, `implied`, `events`, `regime`, `sizing`, `patterns`, `ml`). Cada una pasa por un
+validador que la reimplementa desde el texto, busca *look-ahead* e intenta refutarla.
 
-- Quita las que no apliquen con `skip`: por ejemplo `implied` si no hay datos de opciones ni ETF de volatilidad
-  relevante, o `ml` en modo rápido.
-- Adapta los alcances con `extra_scope`: por ejemplo, para un banco, eventos de tipos de interés.
-- Mientras corre, lee los resultados conforme llegan (ver "Seguimiento") y cuéntale al usuario lo esencial de cada
-  familia en una o dos frases.
+- Quita las que no apliquen con `skip`: p. ej. `implied` si no hay datos de opciones ni un índice de volatilidad
+  relevante.
+- Adapta los alcances con `extra_scope`: p. ej. tipos de interés para un banco.
 
 ## Fase 3 · Combinar (tú) y panel de desafío
 
-1. Reconstruye tú mismo los componentes con evidencia en `<lab>/lead/components.py`. Comprueba que coinciden con los
-   CSV de los agentes (diferencia 0). Guarda los pesos de cada componente y de cada combinación en
-   `lead/w_<nombre>.csv`.
-2. Orden de preferencia para incluir componentes:
-   1. **confirmados** por su validador;
-   2. **débiles pero robustos** a un día de retraso y a perturbaciones, sobre todo si no añaden parámetros nuevos
-      (p. ej. reutilizar los 10/30 del módulo de tendencia en el ETF de mercado);
+1. Reconstruye tú mismo los componentes con evidencia en `<lab>/lead/components.py`, comprueba que coinciden con los
+   `cand_*.csv` de los agentes (diferencia 0) y guarda `lead/w_<nombre>.csv` para cada componente y combinación.
+2. Orden de preferencia:
+   1. componentes **confirmados** por su validador;
+   2. **débiles pero robustos** a un día de retraso y a perturbaciones, sobre todo si no añaden parámetros (p. ej.
+      reutilizar los 10/30 de la tendencia en el ETF de mercado);
    3. nunca los frágiles: dependen de 3 episodios o mueren con un día de retraso.
 
-   Combinar muchos componentes débiles sube el Sharpe IS y baja el OOS.
-3. Evalúa pocas combinaciones: referencia, referencia + confirmados, referencia + confirmados + el mejor robusto. Para
-   cada una, mira IS/OOS/REC/año actual, costo de estrés, un día de retraso, caída máxima y operaciones por módulo.
-   Elige la candidata y una alternativa más sencilla (*fallback*).
-4. Lanza el panel:
+   Combinar muchos débiles sube el Sharpe IS y baja el OOS.
+3. Evalúa pocas combinaciones: referencia, referencia + confirmados, y referencia + confirmados + el mejor robusto. Mira
+   IS/OOS/REC/año actual, estrés de 15 pb, un día de retraso, caída máxima y operaciones por módulo. Elige una candidata
+   y una alternativa más sencilla (*fallback*).
+4. Escribe `<lab>/lead/BRIEF.md`, autosuficiente:
+   - la historia y el número total de configuraciones, **recalculado sumando los `configs_tested` de cada familia** (en
+     TSLA un brief sumó mal y el panel heredó el error);
+   - los veredictos de los validadores;
+   - las definiciones exactas de componentes, candidata y fallback;
+   - las rutas de `lead/`;
+   - tus cifras de referencia, fallback, candidata y comprar y mantener, con estrés y retraso.
+5. Lanza el panel. Omite `repo` y `lean_work` si no ejecutaste `setup_lean.sh`:
 
 ```
-Workflow({scriptPath: "<skill_dir>/workflows/phase2_challenge.js",
-          args: {lab: "<lab>", ticker: "<T>", repo: "<repo>", lean_work: "<work>", brief: "<ver abajo>"}})
+Workflow({scriptPath: "<skill_dir>/workflows/phase3_challenge.js",
+          args: {lab: "<lab>", ticker: "<T>", skill_dir: "<skill_dir>", brief_file: "<lab>/lead/BRIEF.md",
+                 repo: "<repo>", lean_work: "<work>"}})
 ```
-
-El `brief` debe ser autosuficiente:
-
-- la historia;
-- el número total de configuraciones, **recalculado sumando los `configs_tested` de cada familia** (en TSLA el brief
-  sumó mal y el panel heredó el error);
-- los veredictos de los validadores;
-- las definiciones exactas de componentes y candidata;
-- las rutas de `lead/`;
-- tus cifras para referencia, fallback, candidata y comprar y mantener, con estrés y retraso.
 
 Son cuatro agentes:
 
-- un optimizador que intenta superar a la candidata con 200 alternativas pre-registradas;
+- un optimizador que intenta superar a la candidata con alternativas pre-registradas;
 - un escéptico estadístico: bootstrap, Sharpe deflactado, *reality check*, PBO y Monte Carlo;
 - uno de implementación: reimplementación sesión a sesión y diseño para LEAN;
 - uno de régimen: años, crisis, decaimiento y perturbaciones conjuntas.
 
-Si el panel pide cambios de reglas con evidencia, aplícalos y repite la evaluación. Si solo pide cambiar expectativas,
-congela la especificación: más ajustes son sobreajuste.
+**Regla de decisión:**
 
-## Fase 4 · LEAN (si el repo es LEAN o el usuario quiere automatizar)
+- Si 3 o 4 dicen `adopt`/`adopt_with_changes`, adopta la candidata.
+- Si la mayoría dice `prefer_alternative` o `reject`, adopta el fallback (o la referencia).
+- Como mucho UNA ronda de cambios de reglas: reevalúa tú y relanza solo al agente que lo pidió.
+- Si solo piden cambiar expectativas, congela la especificación: más ajustes son sobreajuste.
 
-Sigue `references/lean.md`. Resumen:
+**Resultado negativo:** si nada supera de forma robusta a la referencia y la referencia no mejora a comprar y mantener
+ni en Sharpe OOS ni en caída máxima, dilo en la primera frase de la respuesta. Entrega la regla más simple que sí
+aporte (o recomienda mantener la acción) y omite LEAN salvo que el usuario lo pida.
 
-1. Convierte cada símbolo con `scripts/to_lean_data.py` (precios sin ajustar + factores; `--splits` para la acción; los
-   `*_adj.csv` para los ETFs, empezando un año antes) en `<work>/leandata`, nunca en el `Data/` versionado del repo.
-2. Escribe el algoritmo copiando la estructura de `assets/reference_lean_algorithm_tsla.py`, versión de producción tras
-   dos revisiones; cambia solo la lógica de los módulos, las constantes, los símbolos y el calendario de eventos.
-   Tómalo del diseño del escéptico de implementación si escribió uno.
-3. Ejecuta `scripts/run_lean.sh` en modo "close" con exportación de CSV y deslizamiento = costo base, y luego
-   `scripts/reconcile_lean.py`.
-4. La meta es **0 diferencias de peso** en todas las sesiones, el mismo resultado en modo "morning", y que los
-   arranques a mitad de historia reconstruyan el estado.
+## Fase 4 · LEAN
+
+Hazla si el repositorio es LEAN o el usuario quiere automatizar. Sigue `references/lean.md`:
+
+1. Convierte cada símbolo con `scripts/to_lean_data.py` en `<work>/leandata`, nunca en el `Data/` versionado:
+   - la acción con `--splits $(cat <lab>/data/splits.txt)`; revisa los precios sin ajustar que imprime alrededor de
+     cada split;
+   - los ETFs con sus `*_adj.csv`, empezando un año antes.
+2. Copia `assets/reference_lean_algorithm_tsla.py` a `<repo>/Algorithm.Python/<Clase>.py` y cambia solo lo específico:
+   - el prefijo `F3_` por `STRAT_`;
+   - las fechas, los símbolos y el *benchmark*;
+   - el calendario de eventos;
+   - las reglas y constantes de la clase de estado;
+   - la cabecera.
+
+   Si el escéptico de implementación escribió un diseño, síguelo.
+3. Ejecuta en modo `close` y luego en modo `morning` con los comandos de `references/lean.md`
+   (`STRAT_MODE`, `STRAT_SLIPPAGE=0.0005`, `STRAT_OUT`), y concilia con `scripts/reconcile_lean.py`.
+4. La meta es **0 diferencias de peso** en todas las sesiones, el mismo resultado en ambos modos, y que los arranques a
+   mitad de historia reconstruyan el estado.
 
 ## Fase 5 · Entregable, revisión final y respuesta
 
-1. Crea en el repo `Research/<Ticker>Strategy/` con:
+1. Prepara `Research/<X>/` en el repo:
    - `harness.py`, `engine.py` y `PROTOCOL.md`;
-   - el script de la estrategia final, que imprima cifras, operaciones por módulo y estado actual;
-   - un `fetch_data.py` que reconstruya los datos con fecha de corte fija;
-   - los calendarios de eventos necesarios;
-   - `results/` con las operaciones;
+   - un script de la estrategia final que imprima cifras, operaciones por módulo y estado actual;
+   - un `fetch_data.py` con fecha de corte fija;
+   - los calendarios de eventos;
+   - `results/`;
    - un README en el idioma del usuario con: reglas exactas, resultados por periodo, robustez (estrés, retraso, LEAN),
-     tabla de rentabilidad por operación indicando la base (por módulo o por cuenta), expectativa realista con los
-     rangos del panel, metodología, qué no funcionó, riesgos y cómo reproducir.
+     rentabilidad por operación indicando la base (por módulo o por cuenta), expectativa realista con los rangos del
+     panel, metodología, qué no funcionó, riesgos y cómo reproducir.
 
-   No subas datos descargados de terceros (ignóralos en `.gitignore`).
-2. Haz commit en la rama de trabajo de la sesión y push.
+   No subas datos descargados de terceros.
+2. Haz commit en la rama de trabajo de la sesión, nunca en la principal sin permiso expreso, y push, si el usuario o
+   las instrucciones de la sesión piden el código en el repo. Si no, deja los archivos y dilo en una línea.
 3. Lanza la revisión:
 
 ```
-Workflow({scriptPath: "<skill_dir>/workflows/phase3_deliverable_review.js",
+Workflow({scriptPath: "<skill_dir>/workflows/phase5_deliverable_review.js",
           args: {repo: "<repo>", work: "<work>", skill_dir: "<skill_dir>", lab: "<lab>", ticker: "<T>",
                  algorithm_class: "<Clase>", readme: "<repo>/Research/<X>/README.md", research_dir: "<repo>/Research/<X>",
-                 research_weights: "<lab>/lead/w_<final>.csv", lean_out: "<dir csv LEAN>", lean_log: "<log>",
-                 env_prefix: "STRAT_", evidence_paths: ["<journals de los workflows>"]}})
+                 research_weights: "<lab>/lead/w_<final>.csv", lean_out: "<work>/lean_out", lean_log: "<work>/lean_close.log",
+                 env_prefix: "STRAT_", evidence_paths: ["<journals de las fases 1-3>"]}})
 ```
 
-4. Revisa y aplica el parche del revisor de código: vuelve a correr LEAN y la conciliación. Corrige el README según el
-   fact-check: en TSLA había conteos mal sumados, frases absolutas falsas y expectativas mal atribuidas. Haz commit y push.
-5. **Responde al usuario con el plan en lenguaje sencillo**, siguiendo `references/final_answer.md`: veredicto, qué
-   mirar, cada regla con comprar/vender/qué esperar, ejemplo con dinero, expectativa realista, qué hacer hoy y, solo al
-   final y en breve, dónde está el código y para qué sirve.
-
-   El usuario de TSLA lo dijo claro: "¿Yo para qué quiero tanto código?". Lo que quiere saber es qué hacer.
+   Sin LEAN, pasa `skip_code_review: true` y omite `work`, `algorithm_class`, `lean_out`, `lean_log` y `env_prefix`.
+4. Revisa el `patch.diff` del revisor de código antes de aplicarlo, vuelve a correr LEAN y la conciliación, y corrige
+   el README según el fact-check. En TSLA hubo conteos mal sumados, frases absolutas falsas y expectativas mal
+   atribuidas. Haz commit y push.
+5. **Responde con el plan en lenguaje sencillo** siguiendo `references/final_answer.md`: veredicto, qué mirar, cada
+   regla con comprar/vender/qué esperar, ejemplo con dinero, expectativa realista, qué hacer hoy y, solo al final y en
+   breve, dónde está el código y para qué sirve. El usuario de TSLA lo dijo claro: «¿Yo para qué quiero tanto código?».
+6. Si hubo correcciones del harness o lecciones nuevas, propón llevarlas a la skill (`<skill_dir>/scripts/`,
+   `references/pitfalls.md`).
 
 ## Seguimiento de los workflows
 
-- Cada workflow devuelve un *task id* y escribe un `journal.jsonl` en su carpeta de transcripción; el resultado de
-  cada agente es una línea `{"type":"result",...}`.
-- Para esperar sin bloquear la conversación, usa Bash con `run_in_background` y un bucle `until` que cuente esas
-  líneas. Lee cada resultado con un pequeño script de Python que imprima veredicto, candidatos y cifras.
+- **Dónde está el registro.** Cada workflow escribe
+  `~/.claude/projects/<proyecto>/<sesión>/subagents/workflows/wf_*/journal.jsonl`. El del último lanzado es el
+  directorio más reciente: `ls -td ~/.claude/projects/*/*/subagents/workflows/wf_* | head -1`.
+- **Qué contiene.** Cada agente escribe una línea `started` (con `key`, `label` y `phase`) y, al terminar, una línea
+  `result` con la misma `key` y el JSON de su schema. La etiqueta solo aparece en `started`.
+- **Esperar.** Bash con `run_in_background` y
+  `until [ "$(grep '"type":"result"' <journal> | wc -l)" -ge N ]; do sleep 60; done`. Usa `grep | wc -l`, no
+  `grep -c || echo 0`, que rompe la comparación. N vale:
+  - 2 en la fase 1;
+  - 2 × familias en la fase 2 (una familia sin candidatos no lanza validador);
+  - 4 en el panel;
+  - 2 (o 1 sin LEAN) en la revisión.
+- **Leer los resultados:**
+
+```
+python3 -c "import json,sys
+L={}
+for l in open(sys.argv[1]):
+    j=json.loads(l)
+    if j['type']=='started': L[j['key']]=j['label']
+    elif j['type']=='result': print('==', L.get(j['key']), json.dumps(j['result'], ensure_ascii=False)[:6000])" <journal>
+```
+
+- Las rutas de estos journals son los `evidence_paths` de la fase 5.
 - Si un agente devuelve `null`, mira su transcripción antes de reintentar. Para reanudar:
   `Workflow({scriptPath, resumeFromRunId})`.
-- Si el hook de parada pide hacer commit de archivos sin seguimiento, añade solo las rutas concretas (`git add <rutas>`),
-  nunca los archivos temporales de los revisores.
+- Si un hook pide hacer commit de archivos sin seguimiento, añade solo rutas concretas (`git add <rutas>`), nunca los
+  temporales de los revisores. Si el `.gitignore` del repo excluye `*.sh`, usa `git add -f` para los scripts que deban
+  versionarse.
 
 ## Principios (el porqué)
 
-- **La deriva engaña.** En una acción que sube mucho, casi cualquier regla larga "gana". Compara con comprar y mantener
-  y con entradas aleatorias del mismo periodo.
-- **Solo IS para elegir.** Todo lo que se elige viendo OOS deja de ser OOS: decláralo y prefiere opciones sin
-  parámetros nuevos.
+- **La deriva engaña.** En una acción que sube mucho, casi cualquier regla de compra "gana". Compara con comprar y
+  mantener y con entradas aleatorias del mismo periodo.
+- **Solo IS para elegir.** Lo que se elige viendo OOS deja de ser OOS: declara la contaminación y prefiere opciones
+  sin parámetros nuevos.
 - **Robustez antes que brillo:** vecindario de parámetros, un día de retraso, costos de 15-25 pb, sin las 3 mejores
   operaciones, año a año.
-- **Cada hallazgo lo reproduce otro agente** y cada cifra del entregable la verifica un fact-checker. Las frases
+- **Cada hallazgo lo reproduce otro agente, y cada cifra del entregable la verifica un fact-checker.** Frases como
   "nunca", "siempre" o "N de N" deben resistir con inicio diario y en todos los periodos.
 - **Recorta las expectativas** (selección, deriva, ejecución) y entrégalas como rangos.
 - **Congela la especificación** cuando el panel la acepta.
-- **Honestidad con el usuario:** si la estrategia no supera a comprar y mantener en rentabilidad bruta, dilo en la
-  primera frase.
+- **Honestidad:** si la estrategia no supera a comprar y mantener en rentabilidad bruta, dilo en la primera frase.
 
-## Referencias (léelas cuando toque)
+## Referencias
 
-| Archivo | Cuándo |
+| Archivo | Cuándo leerlo |
 |---|---|
-| `references/data_sources.md` | Fase 0 y antes de lanzar el agente de datos |
-| `references/protocol.md` | Se copia al laboratorio; reglas de evaluación para todos los agentes |
-| `references/pitfalls.md` | Antes de combinar, antes de LEAN y antes de escribir el README: todos los errores que ya ocurrieron |
-| `references/lean.md` | Fase 4 |
+| `references/data_sources.md` | Fase 0 (incluye splits y dividendos) y antes de lanzar la fase 1 |
+| `references/protocol.md` | Se copia al laboratorio: reglas de evaluación para todos los agentes |
+| `references/pitfalls.md` | Antes de combinar, antes de LEAN y antes del README: todos los errores que ya ocurrieron |
+| `references/lean.md` | Fase 4: diseño del algoritmo, partes a cambiar en la plantilla, comandos, verificación |
 | `references/final_answer.md` | Antes de la respuesta final al usuario |
-| `references/tsla_case.md` | Ejemplo completo: tiempos, costos, cifras y veredictos por familia |
-| `assets/reference_lean_algorithm_tsla.py` | Plantilla del algoritmo LEAN; usa el prefijo de entorno `F3_`, renómbralo |
+| `references/tsla_case.md` | Ejemplo completo: tiempos, costes, cifras y veredictos por familia |
+| `assets/reference_lean_algorithm_tsla.py` | Plantilla LEAN revisada dos veces (prefijo `F3_`, a renombrar) |

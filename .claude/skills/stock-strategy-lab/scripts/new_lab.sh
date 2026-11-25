@@ -3,14 +3,16 @@
 # usage: new_lab.sh <TICKER> <lab_dir> [is_end YYYY-MM-DD] [rec_start YYYY-MM-DD]
 # The lab gets the audited harness/engine, the protocol and a config.json with the evaluation periods.
 # Put the stock's daily split-adjusted OHLCV in <lab_dir>/data/main.csv (date,open,high,low,close,volume);
-# is_start is filled in automatically from main.csv the first time harness_check runs (see SKILL.md).
+# is_start is filled in automatically from main.csv the first time check_data.py runs.
+# Re-running it only updates config.json: an existing harness.py / engine.py / PROTOCOL.md (possibly fixed after the
+# audit) is never overwritten.
 set -euo pipefail
 TICKER=${1:?ticker}; LAB=${2:?lab dir}; IS_END=${3:-}; REC_START=${4:-}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL="$(dirname "$HERE")"
 mkdir -p "$LAB/data"
-cp "$HERE/harness.py" "$HERE/engine.py" "$LAB/"
-cp "$SKILL/references/protocol.md" "$LAB/PROTOCOL.md"
+for f in harness.py engine.py; do [ -e "$LAB/$f" ] || cp "$HERE/$f" "$LAB/"; done
+[ -e "$LAB/PROTOCOL.md" ] || cp "$SKILL/references/protocol.md" "$LAB/PROTOCOL.md"
 YEAR=$(date +%Y)
 python3 - "$LAB" "$TICKER" "$IS_END" "$REC_START" "$YEAR" <<'EOF'
 import json, os, sys

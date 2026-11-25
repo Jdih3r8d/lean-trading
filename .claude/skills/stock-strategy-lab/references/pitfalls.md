@@ -19,7 +19,9 @@ Each of these actually happened. Keep the checks; they are cheap.
 - Permutation p-values counted NaN simulations as "worse than actual" and could report p = 0.
 - Trades were assigned to periods by signal date; walk-forward stitched return streams (no switching cost, one
   overnight gap of look-ahead per year).
-Lesson: ALWAYS run the harness audit (phase 0) even when reusing this harness on new data or after edits.
+Lesson: ALWAYS run the harness audit (Fase 1 workflow) even when reusing this harness on new data or after edits.
+- Generic-harness defaults were TSLA dates (walk-forward 2014-2026, permutation from 2010-07-01): now derived from the
+  data and config.json. Check config.json periods for every new stock (check_data.py warns).
 
 ## Research
 - **Drift masquerading as edge**: on a stock that rose 200x, almost every long rule "works". Compare the average trade
@@ -38,6 +40,12 @@ Lesson: ALWAYS run the harness audit (phase 0) even when reusing this harness on
   Freeze the specification once the panel agrees.
 - **Arithmetic in briefs propagates**: the lead's brief summed family trial counts wrong (3,750 vs 3,401) and the
   panel reused it. Recompute counts from the families' own `configs_tested`.
+
+## Splits and dividends (found when testing the skill on NVDA)
+- NVDA had 6 splits, not the 2 recent ones; with an incomplete list LEAN's early raw prices were 12x too low, silently.
+  The Yahoo split DATE can be wrong (2001-09-10 vs the real first split session 2001-09-17). Confirm in raw prices.
+- Dividends: a split-only main.csv ignores dividends in research and buy & hold; for dividend payers use a
+  total-return main.csv with adj_factor so research and LEAN agree.
 
 ## LEAN implementation
 - Feeding split-adjusted prices as raw made share counts and per-share IBKR fees ~3x too high. Use raw prices + a split

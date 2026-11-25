@@ -1,12 +1,13 @@
 export const meta = {
-  name: 'stock-lab-phase0',
+  name: 'stock-lab-phase1-audit-data',
   description: 'Audit the shared backtest harness and acquire the auxiliary datasets for a single-stock strategy lab',
   phases: [
     { title: 'Audit & Data', detail: 'independent harness audit + auxiliary data acquisition in parallel' },
   ],
 }
 
-// args: { lab: '/abs/path/to/lab', ticker: 'NVDA', market_etfs: ['QQQ','SPY','SMH'], extra_data_goals: '...' }
+// Fase 1 of the stock-strategy-lab skill.
+// args: { lab: '/abs/path/to/lab', ticker: 'NVDA', skill_dir: '/abs/skill dir', market_etfs: ['QQQ','SPY','SMH'], extra_data_goals: '...' }
 const LAB = args.lab
 const T = args.ticker
 const ETFS = (args.market_etfs && args.market_etfs.length) ? args.market_etfs : ['QQQ', 'SPY']
@@ -79,8 +80,8 @@ Report every real issue with severity and reproducible evidence; list what you v
 
   () => agent(`You are a data-acquisition agent for a ${T} trading research lab at ${LAB}. Read ${LAB}/PROTOCOL.md and ${SKILL_REF} first (what is reachable from this sandbox and which GitHub mirrors worked before). Do not try to bypass the proxy. Load the WebSearch tool with ToolSearch ("select:WebSearch") if you need it. Sleep a few seconds between GitHub code searches.
 
-The lead has already built ${LAB}/data/main.csv (${T}); do not modify it. Save new files in ${LAB}/data/ and document every file in ${LAB}/data/DATA_NOTES.md (columns, range, sources per segment, validation with overlap statistics, caveats, confidence). Goals in priority order:
-1. Market ETFs ${ETFS.join(', ')}: daily OHLCV covering at least one year before main.csv starts until its last date. Save raw (<etf>.csv) and a dividend-adjusted total-return version with an adj_factor column (<etf>_adj.csv: adjusted price = raw price * adj_factor), validated against a published adj_close. Calendars must match main.csv.
+The lead has already built ${LAB}/data/main.csv (${T}); do not modify it. Save new files in ${LAB}/data/ and APPEND one section per new file to ${LAB}/data/DATA_NOTES.md (columns, range, sources per segment, validation with overlap statistics, caveats, confidence); keep the lead's existing sections about main.csv and splits unchanged. Goals in priority order:
+1. Market ETFs ${ETFS.join(', ')}: daily OHLCV from one year before main.csv starts (or from the ETF's inception if later; say so in DATA_NOTES.md) until main.csv's last date. Save raw (<etf>.csv) and a dividend-adjusted total-return version with an adj_factor column (<etf>_adj.csv: adjusted price = raw price * adj_factor), validated against a published adj_close. Calendars must match main.csv.
 2. VIX family: VIX, VIX3M, VIX9D, VXN (and a sector/volatility index relevant to ${T} if one exists) daily closes, as recent as main.csv; prefer CBOE-format copies, splice and cross-check. Save data/vix.csv.
 3. ${T} earnings releases for the whole history: announce date, timing (after close / before open), last session before the news, and first_trading_session_reacting (the first session whose OPEN reflects the release). Use SEC 8-K Item 2.02 acceptance timestamps (cached EDGAR submissions JSON on GitHub; data.sec.gov is usually blocked) and cross-check with at least one other source. Save data/earnings.csv with a confidence column.
 4. Other scheduled company events that move ${T} (only if they exist and are relevant; e.g. delivery/sales reports, product events), with the same timing rules. Save data/events_<name>.csv.

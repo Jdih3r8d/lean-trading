@@ -29,13 +29,17 @@ walk-forward. `engine.sim` (numba; binary positions with gap-aware stops / take-
    the last 3 years untouched for out-of-sample, and say so.
 4. Significance: `shift_permutation_test()` for timing/regime strategies, `random_entry_test()` for long, fixed-hold
    event strategies, `bootstrap_ci()` (default is a 90% interval) for the average trade, `deflated_sharpe()` with
-   the TRUE number of configurations you tried and the measured std of trial Sharpes.
-5. Always compare with buy & hold (`buy_and_hold`) and with the reference strategy (`load_baseline(df)`, if
-   `data/baseline_weights.csv` exists; its numbers are in `data/BASELINE.md`).
+   the TRUE number of configurations you tried and the measured std of the trial Sharpes in DAILY units
+   (annualised std / sqrt(252); passing the annualised value pushes the DSR towards 0).
+5. Always compare with buy & hold and with the reference strategy (`load_baseline(df)`, if
+   `data/baseline_weights.csv` exists; its numbers are in `data/BASELINE.md`). For buy & hold quote
+   `perf(buy_and_hold(df), lo, hi)` per period (close-to-close, no costs); `report()` with weight 1 gives the same
+   Sharpe/MDD but its trade statistics are meaningless (one long trade).
 6. Check parameter-neighbourhood robustness (a single isolated optimum is not a finding), year-by-year returns,
    one-day-delayed execution (weights shifted one session) and removal of the 3 best trades.
 7. Report the average return per trade net of costs, median, win rate, average win and loss, holding days and number
    of trades, per period. State the basis: per unit of capital allocated to the module, or account level.
-8. Write all your code and outputs in your own subdirectory `<lab>/<your_label>/`. Never modify harness.py, engine.py
+8. Write all your code and outputs in your own subdirectory `<lab>/<your_label>/`, including `trials.csv` (one row per
+   configuration evaluated: config,is_sharpe,oos_sharpe). Never modify harness.py, engine.py
    or data/. Save candidate target weights as `cand_<name>.csv` (columns date,weight) so others can reproduce them.
 9. Count your configurations honestly, pre-register hypotheses before testing, and report negative results.

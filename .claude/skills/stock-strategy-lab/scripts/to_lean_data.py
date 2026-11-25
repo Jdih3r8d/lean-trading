@@ -46,6 +46,17 @@ def main():
     raw['volume'] = df['volume'] / mult
     lines = [f"{d:%Y%m%d} 00:00,{round(o * 10000)},{round(h * 10000)},{round(l * 10000)},{round(c * 10000)},{int(round(v))}"
              for d, o, h, l, c, v in zip(raw.date, raw.open, raw.high, raw.low, raw.close, raw.volume)]
+    print(f"first raw close {raw.close.iloc[0]:.2f} on {df.date.iloc[0].date()}: compare with the real first traded price "
+          "(a missing split makes early raw prices too low by the missing ratio)")
+    for d, r in splits:
+        hit = df.index[df.date == d]
+        if not len(hit):
+            print(f'WARNING: split date {d.date()} is not a session of the CSV (use the first session trading split-adjusted)')
+        elif hit[0] > 0:
+            print(f'  split {d.date()} {r:g}:1  raw close {raw.close[hit[0] - 1]:.2f} -> {raw.close[hit[0]]:.2f} (should drop ~{r:g}x)')
+    for sub in ('market-hours', 'symbol-properties'):
+        if not os.path.isdir(os.path.join(a.root, sub)):
+            print(f'WARNING: {a.root}/{sub} missing: use <work>/leandata created by setup_lean.sh as root')
     usa = os.path.join(a.root, 'equity', 'usa')
     for sub in ('daily', 'factor_files', 'map_files'):
         os.makedirs(os.path.join(usa, sub), exist_ok=True)

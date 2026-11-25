@@ -8,7 +8,10 @@ weekend rows, zero volume, gaps > 5 calendar days, the largest daily moves (unad
 had the previous day's O/H/L). Each extra CSV (columns date,open,high,low,close[,volume], any case) is compared on the
 overlap: share of days where O/H/L/C differ by more than 0.5%. Only trust a repair when two INDEPENDENT sources agree
 (mirrors of the same Yahoo feed are not independent).
-It also fills config.json is_start with the first date of main.csv if it is still the placeholder.
+Sources adjusted on another basis (a snapshot taken before a later split, dividend-adjusted OHLC) fail the level check
+on every row: read the scale-free lines (returns and open/high/low-to-close ratios) instead.
+It also fills config.json is_start with the first date of main.csv if it is still the placeholder, and warns if the IS
+or OOS period is too short or IS is far from ~half of the history.
 """
 import json
 import os
@@ -19,8 +22,8 @@ import pandas as pd
 
 def load(path):
     d = pd.read_csv(path)
-    d.columns = [c.strip().lower() for c in d.columns]
-    dcol = next(c for c in d.columns if c in ('date', 'datetime', 'timestamp', 'time'))
+    d.columns = [c.strip().lower().split('. ', 1)[-1] for c in d.columns]   # also strips Alpha Vantage '1. open'
+    dcol = next((c for c in d.columns if c in ('date', 'datetime', 'timestamp', 'time', 'dt')), d.columns[0])
     d[dcol] = pd.to_datetime(d[dcol], format='mixed', utc=True).dt.tz_localize(None).dt.normalize()
     d = d.rename(columns={dcol: 'date'}).set_index('date').sort_index()
     return d[~d.index.duplicated()]
@@ -69,6 +72,17 @@ def main(lab, others):
                 diff = (df.loc[ix, col] / x.loc[ix, col] - 1).abs()
                 bad = diff[diff > 0.005]
                 print(f'   {col}: max rel diff {diff.max():.4%}, days > 0.5%: {len(bad)} {[d.date().isoformat() for d in bad.index[:6]]}')
+        a_, b_ = df.loc[ix], x.loc[ix]
+        if 'close' in b_:
+            ratio = b_.close / a_.close
+            print(f'   close ratio other/main: first {ratio.iloc[0]:.4f} last {ratio.iloc[-1]:.4f} '
+                  '(a constant or stepped ratio means only the adjustment basis differs: use the scale-free lines)')
+            dr = (a_.close.pct_change() - b_.close.pct_change()).abs()
+            print(f'   scale-free: close-to-close return diff > 0.5pp: {int((dr > 0.005).sum())} {[d.date().isoformat() for d in dr[dr > 0.005].index[:6]]}')
+            for col in ('open', 'high', 'low'):
+                if col in b_:
+                    q = ((a_[col] / a_.close) / (b_[col] / b_.close) - 1).abs()
+                    print(f'   scale-free: {col}/close diff > 0.5%: {int((q > 0.005).sum())} {[d.date().isoformat() for d in q[q > 0.005].index[:6]]}')
     cfg_path = os.path.join(lab, 'config.json')
     if os.path.exists(cfg_path):
         cfg = json.load(open(cfg_path))
@@ -76,6 +90,16 @@ def main(lab, others):
             cfg['is_start'] = df.index[0].date().isoformat()
             json.dump(cfg, open(cfg_path, 'w'), indent=1)
             print('config.json is_start ->', cfg['is_start'])
+        s, e = pd.Timestamp(cfg['is_start']), pd.Timestamp(cfg['is_end'])
+        span = df.index[-1] - df.index[0]
+        frac = (e - df.index[0]) / span if span.days > 0 else 0
+        mid = (df.index[0] + span / 2).year
+        print(f"IS {cfg['is_start']}..{cfg['is_end']} covers {frac:.0%} of the history (target ~50%; to change: "
+              f"new_lab.sh <T> <lab> {mid}-12-31)")
+        if (e - s).days < 5 * 365:
+            print('WARNING: IS is shorter than 5 years or empty: fix is_end in config.json before any research')
+        if (df.index[-1] - pd.Timestamp(cfg['oos_start'])).days < 3 * 365:
+            print('WARNING: OOS is shorter than 3 years')
 
 
 if __name__ == '__main__':

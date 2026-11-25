@@ -46,6 +46,8 @@ def _config():
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
+    import sys
+    print(f'WARNING harness: {path} not found; using default periods (IS ends 2018-12-31). Run new_lab.sh.', file=sys.stderr)
     return {}
 
 
@@ -229,12 +231,17 @@ def _score(tr, score):
     return score(tr)
 
 
-def walk_forward_weights(df, cand_weights, train_years=3, start_year=2014, end_year=2026, score='sharpe',
+def walk_forward_weights(df, cand_weights, train_years=3, start_year=None, end_year=None, score='sharpe',
                          expanding=False, top_k=1, cost=COST_BASE, exec='open'):
     """cand_weights: dict name -> causal weight Series. Every January of year Y, score each candidate's daily
     returns on [Y-train_years, Y-1] (or from the start if expanding) and hold the top_k (equal weight) during
     Y. Weights are stitched: the target decided at the last close of Y-1 (when the pick is known) already
     follows Y's pick; switching costs are included. Returns (daily returns from start_year, weights, picks)."""
+    first = df.index[0]
+    if start_year is None:   # first year whose whole training window lies inside the data
+        start_year = first.year + train_years + (0 if (first.month, first.day) <= (1, 7) else 1)
+    if end_year is None:
+        end_year = df.index[-1].year
     R = pd.DataFrame({k: run_weights(df, v, cost, exec) for k, v in cand_weights.items()})
     Wd = pd.DataFrame({k: pd.Series(v, index=df.index).astype(float).fillna(0.0) for k, v in cand_weights.items()})
     W = pd.Series(0.0, index=df.index)
@@ -253,10 +260,14 @@ def walk_forward_weights(df, cand_weights, train_years=3, start_year=2014, end_y
     return r.loc[pd.Timestamp(f'{start_year}-01-01'):], W, picks
 
 
-def walk_forward(cands, train_years=3, start_year=2014, end_year=2026, score='sharpe', expanding=False, top_k=1):
+def walk_forward(cands, train_years=3, start_year=None, end_year=None, score='sharpe', expanding=False, top_k=1):
     """Legacy return-stitching walk-forward (no switching cost; one overnight gap per year of timing slack).
     Prefer walk_forward_weights(). cands: dict name -> daily return Series."""
     R = pd.DataFrame(cands).fillna(0)
+    if start_year is None:
+        start_year = R.index[0].year + train_years + (0 if (R.index[0].month, R.index[0].day) <= (1, 7) else 1)
+    if end_year is None:
+        end_year = R.index[-1].year
     out, picks = [], []
     for y in range(start_year, end_year + 1):
         lo = R.index[0] if expanding else pd.Timestamp(f'{y - train_years}-01-01')
@@ -268,12 +279,13 @@ def walk_forward(cands, train_years=3, start_year=2014, end_year=2026, score='sh
 
 
 # ---------------------------------------------------------------- significance
-def shift_permutation_test(df, w, n_perm=2000, min_shift=63, cost=COST_BASE, exec='open', lo='2010-07-01', hi=None, seed=0):
+def shift_permutation_test(df, w, n_perm=2000, min_shift=63, cost=COST_BASE, exec='open', lo=None, hi=None, seed=0):
     """Circularly shift the weight series by a random offset (>= min_shift days) and recompute Sharpe on
     [lo, hi]. Preserves exposure and signal autocorrelation, destroys timing.
     Returns (actual_sharpe, p_value, n_valid) with p = (1 + #{sim >= actual}) / (1 + n_valid); shifted
     series with no activity in the window (NaN Sharpe) are dropped."""
     rng = np.random.default_rng(seed)
+    lo = PERIODS['ALL'][0] if lo is None else lo
     w = pd.Series(w, index=df.index).fillna(0.0)
     base = perf(run_weights(df, w, cost, exec), lo, hi)['sharpe']
     if np.isnan(base):

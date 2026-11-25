@@ -3,7 +3,7 @@ from numba import njit
 
 COST = 0.0005  # per side (commission + slippage), 0.10% round trip
 
-def load(path='tsla.csv'):
+def load(path):
     df = pd.read_csv(path, parse_dates=['date']).set_index('date')
     return df
 
