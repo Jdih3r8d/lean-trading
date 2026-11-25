@@ -1,8 +1,19 @@
 # Modo rebote: de una captura de "las que más caen hoy" a un plan de compra y venta
 
-Objetivo: en pocos minutos y con pocos tokens, decirle al usuario cuáles de las acciones que más han caído tienen más
-probabilidad de rebotar, cuánto poner en cada una, cuándo comprar y cuándo vender, y por qué descartar el resto. Sin
-agentes, sin LEAN, sin el estudio completo. Coste orientativo: unos céntimos o decenas de céntimos de dólar por uso.
+Objetivo: decirle al usuario cuáles de las acciones que más han caído tienen más probabilidad de rebotar, cuánto poner
+en cada una, cuándo comprar y cuándo vender, y por qué descartar el resto. Sin LEAN ni el estudio completo.
+
+Dos variantes:
+- **Profunda (por defecto)**: filtro numérico con código + un workflow de agentes (`workflows/rebound_deep.js`):
+  - un agente de contexto de mercado;
+  - por cada finalista, un analista (causa de la caída, histórico de caídas parecidas de esa acción y de sus
+    comparables, catalizadores y probabilidad estimada) y un escéptico que intenta refutarlo;
+  - un juez final que arma el plan.
+
+  Con 5 finalistas son ~12 agentes y 30-60 minutos. El usuario tiene Claude Max y prefiere esta variante; úsala
+  siempre que no pida otra cosa.
+- **Rápida** (solo si el usuario la pide: «rápido», «sin agentes»): filtro numérico + una búsqueda de noticias por
+  finalista, hecho por ti. Minutos y pocos tokens.
 
 ## Por qué estos criterios (y su límite)
 - El estudio de TSLA encontró que **comprar tras una caída fuerte de 5 sesiones (12% o más) y vender 3 sesiones
@@ -16,7 +27,7 @@ agentes, sin LEAN, sin el estudio completo. Coste orientativo: unos céntimos o 
   recomiéndale, cuando quiera poner dinero serio, el estudio de rebote en muchas acciones sin sesgo de supervivencia
   (el método del modo estudio adaptado a un universo como el S&P 500, con su lista histórica de componentes).
 
-## Procedimiento
+## Procedimiento (los pasos 1-2 son comunes; la variante profunda sigue en el paso 3P)
 1. **Lee la captura.** Extrae para cada fila: ticker (o nombre), variación de hoy en %, precio si aparece, y la hora o
    si el mercado está cerrado. Si el bróker muestra nombres y no tickers, tradúcelos al ticker de EE. UU. y, si hay
    duda, pregunta antes de seguir. Ignora valores no estadounidenses, ETFs apalancados, warrants y acciones de menos de
@@ -28,7 +39,21 @@ agentes, sin LEAN, sin el estudio completo. Coste orientativo: unos céntimos o 
    actualizada o captura antigua) y no lo cuenta dos veces; si el precio y el % no cuadran, lo avisa.
    Usa `--after-close` si la captura es posterior a las 16:00 de Nueva York (22:00 en España peninsular); si no, el
    dato de hoy es provisional y el plan será "si al cierre sigue así, compra mañana en la apertura".
-3. **Comprueba la noticia solo de las finalistas** (las CANDIDATA mejor puntuadas, como mucho 5): una búsqueda web por
+3P. **Variante profunda**:
+   - Ejecuta el filtro con `--out <scratchpad>/rebote/screen.json`.
+   - Elige finalistas: las CANDIDATA y VIGILAR del filtro, máximo 6 por puntuación, más las que el usuario pida
+     expresamente.
+   - Lanza el workflow:
+     `Workflow({scriptPath: "<skill_dir>/workflows/rebound_deep.js", args: {skill_dir: "<skill_dir>",
+     work: "<scratchpad>/rebote", screen_json: "<scratchpad>/rebote/screen.json", finalists: ["SNOW", "AMD"],
+     captura: "<lo leído>", after_close: true, usuario: "<dinero para rebotes u otras notas, si las dio>"}})`
+   - Avisa al usuario de que tardará 30-60 minutos.
+   - Al terminar, responde con la plantilla usando el resultado del juez (y los argumentos del analista y del
+     escéptico cuando ayuden a explicar). Salta al paso 5.
+
+   Si la herramienta Workflow no existe en la sesión, lanza los mismos prompts con la herramienta Agent: por cada
+   finalista un analista y después un escéptico, más un agente de mercado, y al final un juez (o haz tú de juez).
+3. **Variante rápida. Comprueba la noticia solo de las finalistas** (las CANDIDATA mejor puntuadas, como mucho 5): una búsqueda web por
    acción, "<ticker> stock falls why <fecha>". Descarta la acción si la caída se debe a: resultados o previsiones
    peores de lo esperado, recorte de dividendo, fraude o investigación, quiebra o reestructuración, ampliación de
    capital, rechazo regulatorio, pérdida de un cliente clave o rebaja de rating de crédito. Mantenla si la caída es
@@ -55,7 +80,7 @@ agentes, sin LEAN, sin el estudio completo. Coste orientativo: unos céntimos o 
    está dispuesto a perder en una operación.
 8. Una línea: no es asesoramiento financiero.
 
-## Para gastar pocos tokens
+## Si el usuario quiere gastar pocos tokens (variante rápida)
 - Manda la captura después del cierre de Nueva York (datos definitivos, sin "si al cierre...").
 - Basta una captura legible con ticker y % del día; no hace falta abrir cada acción.
 - No hagas más de una búsqueda web por finalista ni análisis adicionales salvo que el usuario los pida.

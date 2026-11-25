@@ -5,6 +5,8 @@ acciones concretas.
 
 ## Preferencias del usuario
 - Responde en español.
+- Tiene Claude Max y no le preocupa el consumo de tokens: prefiere análisis a fondo con agentes. Los quiere bajo
+  petición, cuando él lo pida, no como tareas automáticas diarias.
 - Al final de una investigación, explica la estrategia en lenguaje sencillo: qué mirar, cuándo comprar, cuándo vender,
   cuánto dinero poner, qué esperar y qué hacer hoy. El código y los archivos son secundarios; menciónalos al final y
   en breve.
@@ -13,8 +15,9 @@ acciones concretas.
 - `.claude/skills/stock-strategy-lab/`: la skill que repite para cualquier acción el estudio completo hecho con TSLA
   (datos contrastados, motor auditado, familias de estrategias con validadores, panel escéptico, verificación en LEAN
   y respuesta en lenguaje sencillo). Úsala cuando el usuario pida analizar una acción o buscar una estrategia. Tiene
-  también un **modo rebote** rápido y barato: si el usuario manda una captura de su bróker con las acciones que más
-  caen hoy, sigue `references/rebound_mode.md` de la skill (script `scripts/rebound_screen.py`).
+  también un **modo rebote**: si el usuario manda una captura de su bróker con las acciones que más caen hoy, sigue
+  `references/rebound_mode.md` de la skill. Por defecto es la variante profunda con agentes
+  (`workflows/rebound_deep.js`).
 - `Research/TeslaStrategy/`: el estudio de TSLA (README con resultados y riesgos, harness auditado, script de la
   estrategia final y operaciones).
 - `Algorithm.Python/TeslaTrendRegimeEarningsAlgorithm.py`: la estrategia final de TSLA en LEAN, verificada sesión a

@@ -1,14 +1,15 @@
 ---
 name: stock-strategy-lab
-description: Dos modos para acciones de EE. UU. con datos diarios. (1) Modo rebote, rápido y barato, en el que el usuario envía una captura de su bróker con las acciones que más caen hoy (o una lista de tickers) y se eligen las de más probabilidad de rebote con criterios explícitos, diciendo qué comprar, cuánto, cuándo vender y por qué se descarta el resto. (2) Modo estudio, de varias horas con subagentes, que busca una estrategia robusta para UNA acción con datos contrastados, motor auditado, 7 familias con validadores, panel escéptico y verificación en LEAN, explicada en lenguaje sencillo. Úsala para «analiza NVDA y dime cuándo comprar», «busca una estrategia para X», «¿cuáles de estas que han caído van a rebotar?», capturas de las que más bajan hoy, «find me a trading strategy for AAPL». NO para cotizaciones, noticias sueltas, explicar indicadores, un backtest ya definido, cripto, forex, futuros o intradía.
+description: Dos modos para acciones de EE. UU. con datos diarios. (1) Modo rebote, en el que el usuario envía una captura de su bróker con las acciones que más caen hoy (o una lista de tickers); un filtro con código y agentes por acción (causa de la caída, histórico de caídas parecidas, escéptico y juez) deciden qué comprar, cuánto, cuándo vender y por qué se descarta el resto. (2) Modo estudio, de varias horas con subagentes, que busca una estrategia robusta para UNA acción con datos contrastados, motor auditado, 7 familias con validadores, panel escéptico y verificación en LEAN, explicada en lenguaje sencillo. Úsala para «analiza NVDA y dime cuándo comprar», «busca una estrategia para X», «¿cuáles de estas que han caído van a rebotar?», capturas de las que más bajan hoy, «find me a trading strategy for AAPL». NO para cotizaciones, noticias sueltas, explicar indicadores, un backtest ya definido, cripto, forex, futuros o intradía.
 ---
 
 # Laboratorio de estrategias para una acción
 
 ## Elige el modo primero
-- **Modo rebote** (rápido, barato, sin agentes): el usuario manda una captura o lista de acciones que han caído mucho,
-  o pregunta cuáles rebotarán. Sigue SOLO `references/rebound_mode.md` (script `scripts/rebound_screen.py`) y no
-  sigas leyendo este archivo.
+- **Modo rebote**: el usuario manda una captura o lista de acciones que han caído mucho, o pregunta cuáles
+  rebotarán. Sigue SOLO `references/rebound_mode.md` y no sigas leyendo este archivo. Por defecto es la variante
+  profunda: filtro con código + agentes de mercado, analista y escéptico por acción y un juez, en ~30-60 min. La
+  variante rápida, sin agentes, solo si el usuario la pide.
 - **Modo estudio** (varias horas, ~25 agentes): el usuario quiere una estrategia para una acción concreta. Es todo lo
   que sigue.
 
