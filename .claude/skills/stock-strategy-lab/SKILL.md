@@ -311,4 +311,5 @@ for l in open(sys.argv[1]):
 | `references/final_answer.md` | Antes de la respuesta final al usuario |
 | `references/tsla_case.md` | Ejemplo completo: tiempos, costes, cifras y veredictos por familia |
 | `references/rebound_mode.md` | Modo rebote: captura del bróker → lista de compras con fecha de venta |
+| `references/rebound_base_rates.md` | Modo rebote: acierto histórico de la regla en ~500 acciones del S&P 500 (regenerable con `scripts/rebound_base_rates.py`) |
 | `assets/reference_lean_algorithm_tsla.py` | Plantilla LEAN revisada dos veces (prefijo `F3_`, a renombrar) |

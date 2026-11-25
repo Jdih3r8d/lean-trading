@@ -19,8 +19,10 @@ Criterios (PROVISIONALES: salen del estudio de TSLA y de la literatura sobre rev
 validado en muchas acciones; ver references/rebound_mode.md):
   DESCARTAR: precio < 5 $, volumen medio < 20 M$/día, menos de 250 sesiones de historia, rentabilidad de 3 meses
              <= -40% (hundimiento prolongado), o caída de 5 sesiones < 8% (no es una caída fuerte).
-  PREFERIR:  caída de 5 sesiones entre 10% y 35%, precio por encima (o cerca, -5%) de su media de 200 sesiones,
-             evidencia propia positiva. Penalizar si está más de un 10% por debajo de su media de 200 (cuchillo cayendo).
+  PREFERIR:  caída de 5 sesiones entre 10% y 15% (en el S&P 500 desde 2005 las de 15-20% y más de 20% rebotaron PEOR:
+             51% y 47% de aciertos a 3 sesiones; ver references/rebound_base_rates.md), precio por encima (o cerca, -5%)
+             de su media de 200 sesiones (59% de aciertos frente a 53% por debajo), evidencia propia positiva.
+             Penalizar si está más de un 10% por debajo de su media de 200 (cuchillo cayendo).
   La noticia que causó la caída (resultados malos, guía rebajada, fraude, quiebra, ampliación de capital, rechazo
   regulatorio) NO la ve este script: hay que comprobarla para las finalistas y descartarlas si la hay.
 """
@@ -169,7 +171,8 @@ def main():
         if [m for m in motivos if m != nota]:
             decision = 'DESCARTAR'
         else:
-            score += min(-drop5, 0.35) * 10                         # caída fuerte, con tope
+            dd = -drop5                                              # caída: mejor entre 10% y 15%
+            score += 1.5 if 0.10 <= dd < 0.15 else (0.5 if (0.08 <= dd < 0.10 or 0.15 <= dd < 0.20) else 0.0)
             score += 1.0 if dist200 >= -0.05 else (-1.0 if dist200 < -0.10 else 0.0)
             if ev['n'] >= 5 and ev['avg'] is not None:
                 score += 1.0 if ev['avg'] > ev['drift'] and ev['win'] >= 0.55 else (-1.0 if ev['avg'] <= 0 else 0.0)

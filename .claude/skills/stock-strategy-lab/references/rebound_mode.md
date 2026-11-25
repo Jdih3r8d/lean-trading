@@ -16,6 +16,15 @@ Dos variantes:
   finalista, hecho por ti. Minutos y pocos tokens.
 
 ## Por qué estos criterios (y su límite)
+- **Tasas base** (`references/rebound_base_rates.md`, ~500 acciones del S&P 500 desde 2005, vender 3 sesiones
+  después):
+  - un día cualquiera gana el 52% de las veces;
+  - tras caer >=10% en 5 sesiones, el 55%;
+  - si además sigue por encima de su media de 200 sesiones, el 59%;
+  - las caídas de 15-20% y de más del 20% rebotan peor (51% y 47%).
+
+  La ventaja existe pero es pequeña: díselo así al usuario y no prometas porcentajes altos. Regenera la tabla de vez en
+  cuando con `scripts/rebound_base_rates.py`.
 - El estudio de TSLA encontró que **comprar tras una caída fuerte de 5 sesiones (12% o más) y vender 3 sesiones
   después** fue de las reglas que mejor aguantaron (p≈0,02 fuera de muestra), sobre todo cuando el mercado estaba
   nervioso, y que dependía de comprar en la apertura siguiente.
@@ -67,8 +76,11 @@ Dos variantes:
 ## Plantilla de respuesta
 1. **Veredicto en una frase**: cuántas comprarías de la lista y la advertencia de que los criterios son provisionales.
 2. **Compraría** (una línea por acción): ticker y nombre, por qué (caída de X% en 5 días, sigue por encima de su
-   tendencia, sin mala noticia: motivo de la caída), y qué pasó en el pasado tras caídas parecidas de esa misma acción
-   ("de N veces, subió en X; media +Y% en 3 días").
+   tendencia, sin mala noticia: motivo de la caída) y SIEMPRE tres porcentajes de acierto:
+   - **la regla en general** (de `rebound_base_rates.md`, en la situación más parecida, avisando de que es un techo
+     optimista por sesgo de supervivencia);
+   - **esta acción en el pasado** ("de N caídas parecidas, ganó en X: Y%"; si N < 10, dilo);
+   - **la probabilidad estimada ahora**, explicando en una frase por qué sube o baja respecto a los históricos.
 3. **Cuánto**: divide el dinero que el usuario dedica a rebotes entre las elegidas, a partes iguales, sin pasar de un
    20-25% de ese dinero por acción (la mitad si el mercado está en pánico). Ejemplo con 1.000 €.
 4. **Cuándo comprar**: en la apertura de la próxima sesión (indica la fecha, la hora de Nueva York y la de España), con
