@@ -6,8 +6,8 @@ description: Dos modos para acciones de EE. UU. con datos diarios. (1) Modo rebo
 # Laboratorio de estrategias para una acción
 
 ## Elige el modo primero
-- **Modo rebote**: el usuario manda una captura o lista de acciones que han caído mucho, o pregunta cuáles
-  rebotarán. Sigue SOLO `references/rebound_mode.md` y no sigas leyendo este archivo. Por defecto es la variante
+- **Modo rebote**: el usuario manda una captura o lista de acciones que han caído mucho (o su lista de "Top Movers",
+  con las que suben y las que bajan), o pregunta cuáles rebotarán o cuáles van a subir. Sigue SOLO `references/rebound_mode.md` y no sigas leyendo este archivo. Por defecto es la variante
   profunda: filtro con código + agentes de mercado, analista y escéptico por acción y un juez, en ~30-60 min. La
   variante rápida, sin agentes, solo si el usuario la pide.
 - **Modo estudio** (varias horas, ~25 agentes): el usuario quiere una estrategia para una acción concreta. Es todo lo
