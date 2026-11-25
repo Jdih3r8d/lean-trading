@@ -43,7 +43,7 @@ Dos variantes:
 1. **Lee la captura.** Extrae para cada fila: ticker (o nombre), bolsa, variación de hoy en %, precio si aparece, y la
    hora o si el mercado está cerrado. Si el bróker muestra nombres y no tickers, tradúcelos al ticker y, si hay duda,
    pregunta antes de seguir. Ignora ETFs apalancados, warrants y acciones de menos de 5 $ (dilo en una línea). Si la
-   captura es ilegible o cortada, pide otra. Fíjate en tres cosas (las tres pasaron el 25-nov-2026):
+   captura es ilegible o cortada, pide otra. Fíjate en cuatro cosas (las cuatro pasaron el 25-nov-2026):
    - **¿Es la lista del propio usuario?** Si entre las "mejores" hay subidas pequeñas o un 0,00%, el universo es
      pequeño: es su cartera o su lista de seguimiento. Entonces pregunta por TODAS ("¿cuáles van a subir?"): analiza
      también las que suben (grupo `sube`) y di en cada una qué hacer si ya la tiene.
@@ -89,8 +89,11 @@ Dos variantes:
      los escépticos, y responde con la plantilla usando el resultado del juez (y los argumentos del analista y del
      escéptico cuando ayuden a explicar). Salta al paso 5.
 
-   Si la herramienta Workflow no existe en la sesión, lanza los mismos prompts con la herramienta Agent: por cada
-   finalista un analista y después un escéptico, más un agente de mercado, y al final un juez (o haz tú de juez).
+   Si la herramienta Workflow no existe en la sesión, lanza los mismos prompts con la herramienta Agent, como mucho 2
+   a la vez y en este orden: primero el agente de mercado (y, si quieres, el de tasas base); después, por cada
+   finalista, un analista con el JSON del mercado (sobre todo `noticias_de_la_lista`) y su presupuesto de búsquedas,
+   y luego su escéptico; al final, un juez (o haz tú de juez). Reparte las búsquedas como `searchRule` del workflow:
+   ~20 para el mercado, ~8 para el juez y el resto a partes iguales entre las acciones (60% analista, 40% escéptico).
 3. **Variante rápida. Comprueba la noticia solo de las finalistas** (las CANDIDATA mejor puntuadas, como mucho 5; una REVISAR solo si al reconstruir sus cierres recientes cumple la regla): una búsqueda web por
    acción, "<ticker> stock falls why <fecha>". Descarta la acción si la caída se debe a: resultados o previsiones
    peores de lo esperado, recorte de dividendo, fraude o investigación, quiebra o reestructuración, ampliación de
@@ -118,8 +121,9 @@ Dos variantes:
    20-25% de ese dinero por acción (la mitad si el mercado está en pánico). Ejemplo con 1.000 €.
 4. **Cuándo comprar**: en la apertura de la próxima sesión (indica la fecha, la hora de Nueva York y la de España), con
    orden a mercado en la apertura. Si la captura es de antes del cierre: "si al cierre sigue cayendo al menos lo mismo".
-5. **Cuándo vender**: en la apertura de la 3.ª sesión después de comprar, con la fecha exacta del plan del script, pase
-   lo que pase (en TSLA los stops y los objetivos de beneficio no mejoraban la regla).
+5. **Cuándo vender**: en la apertura N sesiones después de comprar (N = el horizonte del juez; 3 en la variante
+   rápida), con la fecha exacta, pase lo que pase (en TSLA los stops y los objetivos de beneficio no mejoraban la
+   regla).
 6. **Descartadas**: una línea por acción con el motivo (cuchillo cayendo, mala noticia, poco líquida, caída pequeña).
 7. **Qué esperar**: la mayoría de rebotes son pequeños; alguna vez una sigue cayendo; no meter más dinero del que se
    está dispuesto a perder en una operación.
@@ -131,7 +135,7 @@ Dos variantes:
 - No hagas más de una búsqueda web por finalista ni análisis adicionales salvo que el usuario los pida.
 
 ## Errores ya vistos (25-nov-2026: captura "Top Movers" de 10 valores, EE. UU. y Europa)
-- **Datos desfasados.** Los espejos de GitHub terminaban en fechas distintas (24-nov, 23-nov, 20-nov, 17-nov). El
+- **Datos desfasados.** Los espejos de GitHub terminaban en fechas distintas (24-nov, 23-nov, 20-nov, 18-nov y 17-nov). El
   filtro antiguo pegaba el % de hoy sobre el último cierre que tuviera y daba caídas de 5 sesiones falsas (Navitas
   −28% cuando era −15%; Penguin −9% cuando era −18%). Ahora el filtro lo marca REVISAR y no inventa la caída.
 - **Cupo de búsquedas agotado.** 23 agentes gastaron las ~200 búsquedas de la sesión. Los analistas de Zealand, SES,

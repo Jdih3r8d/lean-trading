@@ -25,18 +25,22 @@ export const meta = {
 const A = args
 const SK = A.skill_dir
 const WORK = A.work
-const STOCKS = (A.finalists || []).slice(0, 10).map((f) => (typeof f === 'string'
-  ? { t: f, g: 'cae', notas: '' }
-  : { t: f.ticker, g: f.grupo === 'sube' ? 'sube' : 'cae', notas: f.notas || '' }))
+const RAW = (A.finalists || [])
+  .map((f) => (typeof f === 'string' ? { ticker: f } : (f || {})))
+  .map((f) => ({ t: String(f.ticker || f.t || '').trim().toUpperCase(), g: String(f.grupo || '').toLowerCase() === 'sube' ? 'sube' : 'cae', notas: f.notas || '' }))
+  .filter((s) => s.t)
+if (RAW.length > 10) log(`Solo se analizan 10 acciones; quedan fuera: ${RAW.slice(10).map((s) => s.t).join(', ')}`)
+const STOCKS = RAW.slice(0, 10)
 const N = Math.max(STOCKS.length, 1)
-const BUDGET = A.search_budget || 180
-const B_MARKET = 20
-const B_JUDGE = 8
-const perStock = Math.max(6, Math.floor((BUDGET - B_MARKET - B_JUDGE) / N))
-const B_ANALYST = Math.max(4, Math.round(perStock * 0.6))
-const B_SKEPTIC = Math.max(3, perStock - B_ANALYST)
+const BUDGET = (A.search_budget === undefined || A.search_budget === null) ? 180 : Math.max(0, A.search_budget)
+const B_MARKET = Math.min(20, Math.floor(BUDGET * 0.12))
+const B_JUDGE = Math.min(8, Math.floor(BUDGET * 0.05))
+const perStock = Math.max(0, Math.floor((BUDGET - B_MARKET - B_JUDGE) / N))
+const B_ANALYST = Math.ceil(perStock * 0.6)
+const B_SKEPTIC = perStock - B_ANALYST
+if (perStock < 4) log(`search_budget=${BUDGET}: solo ${perStock} búsquedas por acción; conviene reducir finalistas`)
 const hasRisers = STOCKS.some((s) => s.g === 'sube')
-const searchRule = (n) => `PRESUPUESTO DE BÚSQUEDAS: como mucho ${n} búsquedas web. El cupo (~200 por sesión) lo comparten todos los agentes: si lo gastas, los demás se quedan sin datos (el 25-nov-2026 se agotó y cuatro analistas no pudieron verificar nada; uno no vio que su acción tenía una OPA firmada). Prioriza las noticias propias de la acción y su precio reciente; no repitas lo que ya da el contexto de mercado. Si una búsqueda falla o se agota el cupo, dilo y marca el dato como NO VERIFICADO; no lo inventes.`
+const searchRule = (n) => n <= 0 ? 'PRESUPUESTO DE BÚSQUEDAS: ninguno. No uses búsquedas web; trabaja con los datos locales y lo que te den, y marca como NO VERIFICADO lo que no puedas comprobar.' : `PRESUPUESTO DE BÚSQUEDAS: como mucho ${n} búsquedas web. El cupo (~200 por sesión) lo comparten todos los agentes: si lo gastas, los demás se quedan sin datos (el 25-nov-2026 se agotó y cuatro analistas no pudieron verificar nada; uno no vio que su acción tenía una OPA firmada). Prioriza las noticias propias de la acción y su precio reciente; no repitas lo que ya da el contexto de mercado. Si una búsqueda falla o se agota el cupo, dilo y marca el dato como NO VERIFICADO; no lo inventes.`
 
 const COMMON = `Contexto: un inversor particular ha enviado una captura de su bróker con acciones que se mueven mucho hoy y quiere saber cuáles tienen más probabilidad de SUBIR en los próximos días (para las que caen, la estrategia es comprar tras una caída fuerte y vender pocos días después). Nadie puede saberlo con certeza: estima PROBABILIDADES con honestidad. Escribe en español, claro y concreto.
 Captura: ${A.captura || '(ver screen_json)'} · Mercado ${A.after_close ? 'ya cerrado: cifras de hoy definitivas' : 'abierto o sin abrir: cifras de hoy provisionales'}.
@@ -73,7 +77,7 @@ const ANALYST = {
     tesis: { type: 'string', description: '3-5 frases: por qué subiría o no' },
     fuentes: { type: 'array', items: { type: 'string' } },
   },
-  required: ['ticker', 'causa_caida', 'tipo_causa', 'causa_temporal', 'evidencia_historica', 'comparables', 'catalizadores', 'riesgos', 'prob_subida_3s', 'prob_subida_10s', 'horizonte_recomendado', 'veredicto', 'si_ya_la_tiene', 'tesis', 'fuentes'],
+  required: ['ticker', 'precio_reciente', 'movimientos', 'causa_caida', 'tipo_causa', 'causa_temporal', 'evidencia_historica', 'comparables', 'catalizadores', 'riesgos', 'prob_subida_3s', 'prob_subida_10s', 'horizonte_recomendado', 'veredicto', 'si_ya_la_tiene', 'tesis', 'fuentes'],
 }
 const SKEPTIC = {
   type: 'object',
@@ -157,7 +161,7 @@ const JUDGE = {
           acierto_historico_accion: { type: 'string', description: 'p. ej. "de 17 caídas parecidas de esta acción, ganó en 15 (88%)"' },
           riesgo_principal: { type: 'string' },
         },
-        required: ['ticker', 'nombre', 'peso', 'por_que', 'historico', 'fecha_compra', 'fecha_venta', 'horizonte_sesiones', 'prob_estimada', 'riesgo_principal'],
+        required: ['ticker', 'nombre', 'peso', 'condicion_entrada', 'por_que', 'historico', 'fecha_compra', 'fecha_venta', 'horizonte_sesiones', 'prob_estimada', 'acierto_historico_regla', 'acierto_historico_accion', 'riesgo_principal'],
       },
     },
     vigilar: { type: 'array', items: { type: 'object', properties: { ticker: { type: 'string' }, que_esperar: { type: 'string' } }, required: ['ticker', 'que_esperar'] } },
@@ -231,8 +235,8 @@ const pairs = await pipeline(
 )
 const base = await baseP
 const results = (pairs || []).filter(Boolean)
-const missing = STOCKS.map((s) => s.t).filter((t) => !results.find((r) => r.ticker === t))
-if (missing.length) log(`Sin análisis completo para: ${missing.join(', ')}`)
+const missing = STOCKS.map((s) => s.t).filter((t) => { const r = results.find((x) => x.ticker === t); return !r || !r.esceptico })
+if (missing.length) log(`Sin análisis completo (falló el analista o el escéptico): ${missing.join(', ')}`)
 
 phase('Decisión')
 const judge = await agent(`${COMMON}
@@ -244,7 +248,8 @@ TU PAPEL: juez final y gestor. Mira la hora (date; TZ=America/New_York date): si
 3. Para cada compra da SIEMPRE los tres porcentajes de acierto: el de la regla en general (situación más parecida, de rebound_base_rates.md o de las tasas base de hoy; avisa de que es un techo optimista), el de esta acción tras situaciones parecidas (con n; si n < 10, dilo) y la probabilidad estimada ahora, explicando en una frase por qué sube o baja respecto a los históricos.
 4. Lista las de vigilar (qué tendría que pasar) y las descartadas con su motivo (incluye las que el filtro numérico descartó, que están en el JSON). Explica dónde discreparon analista y escéptico y cómo lo resolviste.
 Notas del usuario: ${A.usuario || 'ninguna'}.
-
+${missing.length ? `SIN ANÁLISIS COMPLETO (falló el analista o el escéptico): ${missing.join(', ')}. Inclúyelas en el ranking marcadas como "análisis incompleto" y NO las pongas en compras si su escéptico falta.
+` : ''}
 Contexto de mercado:
 ${JSON.stringify(market, null, 1)}
 

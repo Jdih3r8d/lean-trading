@@ -74,9 +74,10 @@ Lesson: ALWAYS run the harness audit (Fase 1 workflow) even when reusing this ha
   years" was false with daily starts; per-unit vs account-level returns were mixed up). Always run the claims review.
 
 ## Rebound mode (25-Nov-2026 run: a 10-stock "Top Movers" screenshot, US and European)
-- GitHub price mirrors end on different dates (24-Nov, 23-Nov, 20-Nov, 17-Nov the same day). The old screen pasted
+- GitHub price mirrors end on different dates (24-Nov, 23-Nov, 20-Nov, 18-Nov, 17-Nov the same day). The old screen pasted
   today's % on top of a stale close and produced false 5-session drops (NVTS -28% instead of -15%). The screen now
-  checks the last expected NYSE session and marks stale tickers `REVISAR` without inventing today's bar.
+  checks the last expected NYSE session and marks stale tickers `REVISAR` without inventing today's bar (one
+  missing session is rebuilt from the screenshot's price and %, or from the screenshot itself on a weekend).
 - ~23 agents exhausted the session's ~200 web searches; four analysts could not verify anything and one missed that
   its stock (INSM) had a signed cash takeover. The workflow now runs the market agent first, passes its news to the
   analysts and gives every agent a search budget (`search_budget`).

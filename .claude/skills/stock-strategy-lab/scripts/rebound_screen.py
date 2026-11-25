@@ -79,6 +79,25 @@ def parse_item(s):
     return s.upper().strip(), info or None
 
 
+_WARNED = []
+
+
+def _approx_nyse_holidays(start, end):
+    """Festivos de NYSE con las reglas de pandas (respaldo si falta pandas_market_calendars). Aproximado: no cubre
+    cierres extraordinarios, y NYSE no traslada al viernes un Año Nuevo en sábado (aquí tampoco)."""
+    from pandas.tseries.holiday import (AbstractHolidayCalendar, GoodFriday, Holiday, USLaborDay,
+                                        USMartinLutherKingJr, USMemorialDay, USPresidentsDay, USThanksgivingDay,
+                                        nearest_workday, sunday_to_monday)
+
+    class _NYSE(AbstractHolidayCalendar):
+        rules = [Holiday('NewYear', month=1, day=1, observance=sunday_to_monday), USMartinLutherKingJr,
+                 USPresidentsDay, GoodFriday, USMemorialDay,
+                 Holiday('Juneteenth', month=6, day=19, start_date='2022-01-01', observance=nearest_workday),
+                 Holiday('July4', month=7, day=4, observance=nearest_workday), USLaborDay, USThanksgivingDay,
+                 Holiday('Christmas', month=12, day=25, observance=nearest_workday)]
+    return _NYSE().holidays(start, end)
+
+
 def nyse_sessions(start, end):
     """Sesiones de la bolsa de Nueva York entre start y end (ambos incluidos), sin zona horaria."""
     try:
@@ -86,7 +105,11 @@ def nyse_sessions(start, end):
         s = mcal.get_calendar('NYSE').valid_days(start, end)
         return [pd.Timestamp(x).tz_localize(None).normalize() for x in s]
     except Exception:  # noqa: BLE001
-        return list(pd.bdate_range(start, end))
+        if not _WARNED:
+            _WARNED.append(1)
+            print('aviso: sin pandas_market_calendars; uso un calendario aproximado de NYSE '
+                  '(pip install pandas_market_calendars)', file=sys.stderr)
+        return list(pd.bdate_range(start, end, freq='C', holidays=_approx_nyse_holidays(start, end)))
 
 
 def sessions_after(day, n):
@@ -167,10 +190,28 @@ def main():
         d = d.copy()
         last_date = d.index[-1]
         n_missing = missing_sessions(last_date, prev_session)
-        stale = n_missing > 0
         provisional = False
         notas = []
         appended = False
+        pct = today_info.get('pct') if today_info else None
+        price = today_info.get('price') if today_info else None
+        if today_info and n_missing == 1 and not today_is_session and today.dayofweek >= 5:
+            # fin de semana: la captura muestra la última sesión, que es justo la que falta en los datos
+            px0 = price if price is not None else (d['close'].iloc[-1] * (1 + pct / 100) if pct is not None else None)
+            if px0 is not None:
+                d.loc[prev_session] = [px0, px0, px0, px0, np.nan]
+                appended, n_missing = True, 0
+                notas.append(f'uso la captura como cierre del {prev_session.date()}, que faltaba en los datos')
+        elif today_info and n_missing == 1 and today_is_session and pct is not None and price is not None \
+                and pct > -100:
+            # día de sesión: el cierre de ayer que falta es precio / (1 + %); se reconstruye y se sigue normal
+            prev_close = price / (1 + pct / 100)
+            d.loc[prev_session] = [prev_close, prev_close, prev_close, prev_close, np.nan]
+            n_missing = 0
+            notas.append(f'reconstruí el cierre del {prev_session.date()} ({prev_close:.2f}) con el precio y el % '
+                         'de la captura, porque faltaba en los datos')
+        last_date = d.index[-1]
+        stale = n_missing > 0
         if stale:
             faltan = 'falta 1 sesión' if n_missing == 1 else f'faltan {n_missing} sesiones'
             notas.append(f'DATOS DESFASADOS: el último dato es del {last_date.date()} y {faltan}; '
@@ -180,7 +221,6 @@ def main():
                          '(p. ej. que cotice en otra bolsa)')
         if today_info and last_date < today and today_is_session:
             last = d['close'].iloc[-1]
-            pct, price = today_info.get('pct'), today_info.get('price')
             if stale:
                 if price is not None:
                     # el precio de la captura es real, pero entre medias faltan sesiones: se usa y se marca
@@ -198,17 +238,21 @@ def main():
                 d.loc[today] = [px, px, px, px, np.nan]
                 appended = True
                 provisional = not a.after_close
-        elif today_info and not today_is_session and not stale:
-            notas.append(f'hoy no hay sesión en Nueva York: los datos ya incluyen el último movimiento '
-                         f'(último cierre {last_date.date()})')
+        elif today_info and not today_is_session and not stale and not appended:
+            if today.dayofweek >= 5:
+                notas.append(f'hoy no hay sesión en Nueva York: los datos ya incluyen el último movimiento '
+                             f'(último cierre {last_date.date()})')
+            else:
+                notas.append('hoy es festivo en Nueva York: el % de la captura es de otra bolsa (p. ej. LS Exchange) '
+                             f'y no se usa; los datos llegan al último cierre de Nueva York ({last_date.date()})')
         c = d['close']
         if len(c) < 250:
             rows.append({'ticker': t, 'decision': 'DESCARTAR', 'motivo': f'solo {len(c)} sesiones de historia'})
             continue
         px = float(c.iloc[-1])
         drop1 = float(c.iloc[-1] / c.iloc[-2] - 1)
-        if stale and today_info and today_info.get('pct') is not None:
-            drop1 = today_info['pct'] / 100     # con datos viejos, el % de la captura es el único dato fiable de hoy
+        if stale:   # con datos viejos, el % de la captura es el único dato fiable de hoy (si no hay, no se sabe)
+            drop1 = pct / 100 if pct is not None else None
         drop5 = float(c.iloc[-1] / c.iloc[-6] - 1)
         r3m = float(c.iloc[-1] / c.iloc[-64] - 1)
         sma200 = float(c.rolling(200).mean().iloc[-1])
@@ -219,7 +263,9 @@ def main():
         duros, blandos = [], []          # duros: no dependen de los últimos días; blandos: sí
         if not np.isnan(dvol) and dvol < 20e6:
             duros.append(f'poco líquida ({dvol / 1e6:.0f} M$/día)')
-        if px < 5:
+        if price is not None and price < 5:
+            duros.append('precio < 5 $ (precio de la captura)')
+        elif px < 5:
             blandos.append('precio < 5 $')
         if r3m <= -0.40:
             blandos.append(f'lleva meses hundiéndose ({r3m:.0%} en 3 meses)')
@@ -249,7 +295,7 @@ def main():
         if decision == 'DESCARTAR':
             score = 0.0
         rows.append({'ticker': t, 'decision': decision, 'score': round(score, 2), 'precio': round(px, 2),
-                     'caida_hoy': round(drop1, 4), 'caida_5s': round(drop5, 4), 'rent_3m': round(r3m, 4),
+                     'caida_hoy': None if drop1 is None else round(drop1, 4), 'caida_5s': round(drop5, 4), 'rent_3m': round(r3m, 4),
                      'dist_sma200': round(dist200, 4), 'desde_max_52s': round(dd52, 4),
                      'vol_medio_musd': round(dvol / 1e6, 1) if not np.isnan(dvol) else None,
                      'evidencia_propia': ev, 'dato_hoy_provisional': provisional,
@@ -276,7 +322,8 @@ def main():
         ev = r['evidencia_propia']
         evs = (f"n={ev['n']} media={ev['avg']:+.1%} gana={ev['win']:.0%} deriva={ev['drift']:+.1%}"
                if ev['n'] else 'sin caídas parecidas')
-        print(f"{r['ticker']:7s} {r['decision']:10s} {r['score']:5.1f} {r['precio']:9.2f} {r['caida_hoy']:7.1%} "
+        hoy = 'n/d' if r['caida_hoy'] is None else format(r['caida_hoy'], '.1%')
+        print(f"{r['ticker']:7s} {r['decision']:10s} {r['score']:5.1f} {r['precio']:9.2f} {hoy:>7s} "
               f"{r['caida_5s']:7.1%} {r['rent_3m']:8.1%} {r['dist_sma200']:8.1%} {r['vol_medio_musd'] or 0:8.0f}  "
               f"{evs}  {r['motivo']}{' [dato de hoy provisional]' if r['dato_hoy_provisional'] else ''}")
     if a.out:
