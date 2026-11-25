@@ -35,20 +35,28 @@ def fixed_hold(sig, hold, index):
     return pd.Series(w, index=index)
 
 
-def components(df):
+def reaction_sessions(extra=()):
+    """Earnings reaction sessions (first session whose open reflects each release) plus any extra dates."""
+    e = pd.read_csv(os.path.join(HERE, 'data', 'tsla_earnings.csv'), parse_dates=['first_trading_session_reacting'])
+    return pd.DatetimeIndex(list(e.first_trading_session_reacting) + [pd.Timestamp(d) for d in extra]).unique()
+
+
+def components(df, qqq_close=None, extra_reactions=()):
+    """Module flags decided at each close. qqq_close: dividend-adjusted QQQ closes (default: data/qqq_adj.csv)."""
     c, idx = df['close'], df.index
     a = (c.rolling(10).mean() > c.rolling(30).mean()).astype(float)
     b = fixed_hold((c / c.shift(5) - 1 <= -0.12).fillna(False).values, 3, idx)
-    e = pd.read_csv(os.path.join(HERE, 'data', 'tsla_earnings.csv'), parse_dates=['first_trading_session_reacting'])
-    reaction = pd.Series(idx.isin(e.first_trading_session_reacting), index=idx)
+    reaction = pd.Series(idx.isin(reaction_sessions(extra_reactions)), index=idx)
     p = fixed_hold((reaction & (c / c.shift(1) - 1 >= 0.03)).values, 10, idx)
-    q = pd.read_csv(os.path.join(HERE, 'data', 'qqq_adj.csv'), parse_dates=['date']).set_index('date')['close']
+    q = qqq_close
+    if q is None:
+        q = pd.read_csv(os.path.join(HERE, 'data', 'qqq_adj.csv'), parse_dates=['date']).set_index('date')['close']
     g = (q.rolling(10).mean() > q.rolling(30).mean()).reindex(idx).astype(float)
     return {'A': a, 'G': g, 'B': b, 'P': p}
 
 
-def f3_weights(df):
-    m = components(df)
+def f3_weights(df, qqq_close=None, extra_reactions=()):
+    m = components(df, qqq_close, extra_reactions)
     return np.minimum(1.0, 0.5 * m['A'] * m['G'] + 0.5 * m['B'] + 0.5 * m['P'])
 
 
