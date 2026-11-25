@@ -1,7 +1,8 @@
 # Implementing and verifying the final strategy in LEAN
 
 ## Toolchain (once per container)
-`scripts/setup_lean.sh <repo> <work>`: .NET 10 from the Ubuntu archive, `dotnet build QuantConnect.Lean.sln`, a Python
+If `/opt/lean_work/py311` exists, the cloud environment's setup script already did all of this before the session
+started: use `<work>=/opt/lean_work` and skip setup_lean.sh. Otherwise run `scripts/setup_lean.sh <repo> <work>`: .NET 10 from the Ubuntu archive, `dotnet build QuantConnect.Lean.sln`, a Python
 3.11 venv with pandas<3 for pythonnet, and `<work>/leandata` with market-hours, symbol-properties and the interest-rate
 file. Convert every symbol the algorithm uses with `scripts/to_lean_data.py` (raw prices + factor files; pass
 `--splits $(cat <lab>/data/splits.txt)` for the stock, and keep its adj_factor column if main.csv is dividend-adjusted; use the `*_adj.csv` with adj_factor for ETFs, start ETFs a year earlier than the stock so

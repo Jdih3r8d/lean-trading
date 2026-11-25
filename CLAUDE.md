@@ -21,8 +21,12 @@ acciones concretas.
 - `Algorithm.Python/TeslaTrendCapitulationAlgorithm.py`: la primera versión (estudio 1), superada por la anterior.
 
 ## Cosas que conviene saber
-- Los contenedores de la nube son temporales: .NET, el venv de Python 3.11 y los datos en formato LEAN hay que
-  recrearlos en cada sesión (`.claude/skills/stock-strategy-lab/scripts/setup_lean.sh`, unos 10 minutos).
+- Este repositorio tiene un entorno de nube propio llamado `lean-trading`. Su script de preparación instala .NET 10,
+  compila LEAN y crea `/opt/lean_work` (venv de Python 3.11 en `py311/` y carpeta de datos LEAN en `leandata/`) ANTES
+  de que empiece la sesión. Si existe `/opt/lean_work/py311`, úsalo como `<work>` de la skill y NO ejecutes
+  `setup_lean.sh`. Solo si no existe (sesión iniciada en otro entorno), ejecútalo:
+  `bash .claude/skills/stock-strategy-lab/scripts/setup_lean.sh $PWD /opt/lean_work` (unos 5 minutos, casi sin tokens:
+  es tiempo de compilación, no de razonamiento).
 - No modifiques los datos versionados de `Data/`: convierte los datos propios a una carpeta aparte con
   `to_lean_data.py`.
 - El `.gitignore` del repo excluye `*.sh`: añade los scripts de shell con `git add -f`.

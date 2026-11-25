@@ -36,7 +36,9 @@ Marcadores (usa siempre rutas absolutas, porque se incrustan en los prompts de l
 - `<repo>`: raíz del repositorio LEAN, la carpeta con `QuantConnect.Lean.sln` y `Algorithm.Python/`. Si la sesión no
   tiene uno y el usuario quiere LEAN, clónalo con `git clone --depth 1 https://github.com/QuantConnect/Lean`; si no,
   sáltate la fase 4 y dilo.
-- `<work>`: `<scratchpad>/lean_work`, con el venv, los datos LEAN, las salidas y las revisiones. Nunca dentro del repo.
+- `<work>`: `/opt/lean_work` si ya existe `/opt/lean_work/py311` (lo prepara el script del entorno de nube del
+  repo: LEAN compilado, venv y carpeta de datos; entonces no ejecutes `setup_lean.sh`). Si no existe,
+  `<scratchpad>/lean_work`. Contiene el venv, los datos LEAN, las salidas y las revisiones. Nunca dentro del repo.
 - `<Clase>`: nombre del algoritmo y de su archivo, p. ej. `NvdaTrendRegimeAlgorithm`.
 - `<X>`: `<Ticker>Strategy`, la carpeta del entregable dentro de `Research/`.
 
@@ -113,7 +115,8 @@ Mientras tanto, tú:
   buscando una meseta, no un pico).
 - Guarda `data/baseline_weights.csv` (date,weight) y `data/BASELINE.md`, con las reglas, las cifras de IS/OOS/REC/año
   actual, las de comprar y mantener (`perf(buy_and_hold(df), lo, hi)`) y lo que no funcionó.
-- Si habrá LEAN, ejecuta en segundo plano `bash <skill_dir>/scripts/setup_lean.sh <repo> <work>`.
+- Si habrá LEAN y no existe `/opt/lean_work/py311`, ejecuta en segundo plano
+  `bash <skill_dir>/scripts/setup_lean.sh <repo> <work>` (unos 5 minutos de compilación, casi sin tokens).
 
 Al terminar el workflow:
 
