@@ -21,6 +21,9 @@ RAW = "https://raw.githubusercontent.com/"
 TSLA_OLD = RAW + "Stonks/tickers/HEAD/tickers/nasdaq/TSLA.csv"
 TSLA_NEW = RAW + "yennanliu/finance_data/HEAD/data/prices/tsla.csv"
 QQQ = RAW + "alm0421/alm0421/HEAD/data/prices/QQQ.csv"
+# Las fuentes se actualizan a diario; se corta en el último día del estudio para que los resultados sean reproducibles.
+# Pon END = None para usar todos los datos disponibles.
+END = "2026-11-23"
 
 
 def get(url):
@@ -39,6 +42,7 @@ def tsla():
     df = pd.concat([old[old.index < new.index[0]], new]).sort_index()
     df = df[~df.index.duplicated()]
     df.loc["2018-03-13", ["open", "high", "low"]] = [22.9947, 23.0080, 22.4176]
+    df = df.loc[:END]
     df.to_csv(os.path.join(DATA, "tsla.csv"))
     print(f"TSLA: {len(df)} sesiones, {df.index[0].date()} .. {df.index[-1].date()}")
 
@@ -46,7 +50,7 @@ def tsla():
 def qqq():
     q = get(QQQ)
     q["date"] = pd.to_datetime(q["date"])
-    q = q.set_index("date").sort_index()
+    q = q.set_index("date").sort_index().loc[:END]
     div = q["dividend"].fillna(0.0)
     f = (1 - div / q["close"].shift(1)).fillna(1.0)          # factor de cada fecha ex-dividendo
     adj_factor = f[::-1].cumprod()[::-1].shift(-1).fillna(1.0)  # producto de los factores de fechas posteriores

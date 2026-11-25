@@ -4,3 +4,4 @@ study1/tsla.csv
 study1/grid.pkl
 __pycache__/
 *.pkl
+study1/equity.csv

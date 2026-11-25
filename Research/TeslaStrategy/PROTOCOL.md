@@ -1,5 +1,9 @@
 # TSLA strategy lab: common protocol
 
+> Copy of the protocol the research agents followed in the lab. The lab-only auxiliary datasets it mentions (VIX,
+> SPY, TSLA implied vol, deliveries, opex, DATA_NOTES.md) are not shipped here; `fetch_data.py` rebuilds the TSLA and
+> QQQ files the final strategy needs, and `data/tsla_earnings.csv` is included.
+
 Lab root: this directory (`lab/`). Python 3.13 with pandas, numpy, numba, scipy installed (pip works for more).
 
 ## Data (`data/`)

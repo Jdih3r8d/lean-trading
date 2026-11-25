@@ -40,6 +40,8 @@ def main(csv_path, ticker, data_root, start=None):
         for d, o, h, l, c, v in zip(raw.date, raw.open, raw.high, raw.low, raw.close, raw.volume)
     ]
     usa = os.path.join(data_root, 'equity', 'usa')
+    for sub in ('daily', 'factor_files', 'map_files'):
+        os.makedirs(os.path.join(usa, sub), exist_ok=True)
     with zipfile.ZipFile(os.path.join(usa, 'daily', f'{t}.zip'), 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr(f'{t}.csv', '\n'.join(lines) + '\n')
     # factor file: cada fila da el price factor y el split factor aplicables a las fechas <= fecha de la fila

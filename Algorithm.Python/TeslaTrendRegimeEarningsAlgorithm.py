@@ -27,6 +27,9 @@
 #   * fill_forward=False and an is_fill_forward guard: a fill-forwarded bar must never count as a session.
 #   * Orders: market-on-open, sized with the decision close and the equity at that close; rebalance when the target
 #     changes or the held weight drifts more than BAND (0.05) from the target.
+#   * Account: a Reg-T MARGIN account is required. Target 1.0 is sized at 100% of equity at the decision close, so
+#     fees and gap-ups are briefly financed on margin (held weight up to ~1.04 in the backtest); a cash account rejects
+#     orders. The 'cash_buffer' parameter (default 0, which reproduces the research) sizes orders below 100%.
 #   * MODE 'close'  : decide in on_data on the daily bar (DailyPreciseEndTime -> 16:00 ET), MOO for the next open.
 #     MODE 'morning': stateless; a scheduled event 30 min before the open rebuilds everything from SCALED_RAW daily
 #                     history (70 bars) and sends the MOO. Recommended live: official closes, restart-safe, no order
@@ -36,7 +39,7 @@
 from AlgorithmImports import *
 import os
 import csv
-from datetime import date, timedelta
+from datetime import date
 
 # First session whose open reflects each quarterly results release (65 after the close, 2012-11-05 before the open).
 # MUST be extended every quarter (Tesla announces the date ~2-3 weeks ahead); extra dates can be passed with the
@@ -96,10 +99,15 @@ class F3State:
 
 
 class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
-    HISTORY_BARS = 70          # >= 30 for the SMAs; replaying >= 15 bars reproduces the B/P state exactly
+    HISTORY_BARS = 70          # >= 30 for the SMAs; B/P state is exact unless a chain of B signals spaced <= 3 sessions
+                               # spans the whole window (longest chain 2010-2026: 10 sessions)
+    EARNINGS_WARN_DAYS = 60    # shortest gap between listed reaction sessions is 70 days; Tesla announces 2-3 weeks ahead
 
     def _param(self, name, default):
-        return os.environ.get('F3_' + name.upper(), self.get_parameter(name, default))
+        value = self.get_parameter(name, default)       # config.json 'parameters', lean CLI --parameter, QC cloud
+        if not self.live_mode:                          # F3_* environment variables: local research runs only
+            value = os.environ.get('F3_' + name.upper(), value)
+        return value
 
     def initialize(self):
         self.set_start_date(2010, 6, 29)
@@ -107,7 +115,9 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
         self.set_cash(float(self._param('cash', '100000')))
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
         self.settings.daily_precise_end_time = True
+        self.settings.seed_initial_prices = True        # valid price/TPV before the first daily bar (morning mode, restarts)
         self._band = float(self._param('band', '0.05'))
+        self._buffer = float(self._param('cash_buffer', '0'))
         self._mode = self._param('mode', 'close')
         self._out = self._param('out', '')
         self._tsla = self.add_equity('TSLA', Resolution.DAILY, fill_forward=False,
@@ -127,7 +137,10 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
         if self._mode == 'morning':
             self.schedule.on(self.date_rules.every_day(self._tsla), self.time_rules.before_market_open(self._tsla, 30),
                              self._morning)
-        self._intended_qty = None
+        self._pending_target = None
+        self._fallback_armed = False
+        self._last_session = None
+        self._warned_on = None
         if self.live_mode:
             # an MOO that did not fill (no opening cross, halt, broker reject) is replaced by a market order after the open
             self.schedule.on(self.date_rules.every_day(self._tsla), self.time_rules.after_market_open(self._tsla, 15),
@@ -141,24 +154,22 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
                                          data_normalization_mode=DataNormalizationMode.SCALED_RAW))
         qh = list(self.history[TradeBar](self._qqq, self.HISTORY_BARS + 40, Resolution.DAILY, fill_forward=False,
                                          data_normalization_mode=DataNormalizationMode.SCALED_RAW))
-        qmap = {b.time.date(): b.close for b in qh}
-        tdates = [b.time.date() for b in th]
-        out = []
-        # QQQ closes before the first TSLA bar of the window (IPO case: TSLA has no history, QQQ has)
-        first = tdates[0] if tdates else date.max
-        for b in qh:
-            d = b.time.date()
-            if d < first and (upto_exclusive is None or d < upto_exclusive):
-                st.add_qqq(float(b.close))
+        qbars = [(b.time.date(), float(b.close)) for b in qh
+                 if upto_exclusive is None or b.time.date() < upto_exclusive]
+        qi, out = 0, []
         for b in th:
             d = b.time.date()                         # bar START date = the session (independent of end-time setting)
             if upto_exclusive is not None and d >= upto_exclusive:
                 break
-            if d in qmap:
-                st.add_qqq(float(qmap[d]))
-            else:
+            while qi < len(qbars) and qbars[qi][0] <= d:   # every QQQ session up to d, as on_data does
+                st.add_qqq(qbars[qi][1])
+                qi += 1
+            if qi == 0 or qbars[qi - 1][0] != d:
                 self.debug(f'WARNING: no QQQ bar for {d}; QQQ window not advanced')
             out.append((d,) + st.step(d, float(b.close)))
+        while qi < len(qbars):                        # QQQ sessions after the last TSLA bar (IPO case: all of them)
+            st.add_qqq(qbars[qi][1])
+            qi += 1
         return st, out
 
     # ------------------------------------------------------------------ MODE 'close': incremental, decide on the bar
@@ -168,15 +179,26 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
             return
         for s in data.splits.values():
             if s.type == SplitType.SPLIT_OCCURRED and self._state is not None:
-                (self._state.rescale_tsla if s.symbol == self._tsla else self._state.rescale_qqq)(float(s.split_factor))
-                if s.symbol == self._tsla and self._intended_qty is not None:
-                    self._intended_qty = int(round(self._intended_qty / float(s.split_factor)))
+                if s.symbol == self._tsla:
+                    self._state.rescale_tsla(float(s.split_factor))
+                elif s.symbol == self._qqq:
+                    self._state.rescale_qqq(float(s.split_factor))
         for dv in data.dividends.values():
             if self._state is not None and dv.reference_price > 0:
                 f = 1.0 - float(dv.distribution) / float(dv.reference_price)
-                (self._state.rescale_tsla if dv.symbol == self._tsla else self._state.rescale_qqq)(f)
+                if dv.symbol == self._tsla:
+                    self._state.rescale_tsla(f)
+                elif dv.symbol == self._qqq:
+                    self._state.rescale_qqq(f)
         tbar = data.bars.get(self._tsla)
         qbar = data.bars.get(self._qqq)
+        if tbar is not None and not tbar.is_fill_forward and self._last_session is not None:
+            if tbar.time.date() <= self._last_session:
+                return                                # same session delivered again (live reconnect): never step twice
+            prev = self.securities[self._tsla].exchange.hours.get_previous_trading_day(tbar.time).date()
+            if prev != self._last_session:
+                self.debug(f'WARNING: no TSLA bar between {self._last_session} and {tbar.time.date()}; rebuilding from history')
+                self._state = None
         if self._state is None:
             # first bar after start: rebuild windows + B/P state from history that ENDS BEFORE this bar
             today = (tbar or qbar).time.date() if (tbar or qbar) else self.time.date()
@@ -189,6 +211,7 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
         if qbar is None:
             self.debug(f'WARNING: TSLA bar without QQQ bar on {tbar.time.date()}')
         session = tbar.time.date()
+        self._last_session = session
         a, g, b, p, target = self._state.step(session, float(tbar.close))
         self._decide(session, a, g, b, p, target, self._prev_target, float(tbar.close))
         self._prev_target = target
@@ -196,21 +219,26 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
 
     # ------------------------------------------------------------------ MODE 'morning': stateless, before the open
     def _morning(self):
-        _, rows = self._replay()
+        st, rows = self._replay()
         if not rows:
             return
         session, a, g, b, p, target = rows[-1]
-        if session >= self.time.date():
-            return                                  # history must end at the previous session
+        expected = self.securities[self._tsla].exchange.hours.get_previous_trading_day(self.time).date()
+        if session != expected:                     # history must end exactly at the previous session
+            self.error(f'F3: daily history ends at {session}, expected {expected}; no decision this morning')
+            return
         prev = rows[-2][-1] if len(rows) >= 2 else 0.0
-        self._decide(session, a, g, b, p, target, prev, float(self.securities[self._tsla].price))
+        self._decide(session, a, g, b, p, target, prev, st.tc[-1])   # decision close, scaled to today's share count
 
     # ------------------------------------------------------------------ orders
     def _decide(self, session, a, g, b, p, target, prev_target, price):
         self._rows.append((session.isoformat(), a, g, b, p, target))
-        if self.live_mode and (self.time.date() - max(self._reaction)).days > 95:
-            self.debug(f'WARNING: last earnings reaction session listed is {max(self._reaction)}; add the next one')
-        self._intended_qty = None
+        last = max(self._reaction)
+        if self.live_mode and self._warned_on != self.time.date() and (self.time.date() - last).days > self.EARNINGS_WARN_DAYS:
+            self._warned_on = self.time.date()
+            self.error(f'F3: last earnings reaction session listed is {last}; add the next one (extra_reaction_sessions)')
+        self._pending_target = None
+        self._fallback_armed = False
         if self.is_warming_up or price <= 0:
             return
         self.transactions.cancel_open_orders(self._tsla)
@@ -219,25 +247,41 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
         current = h.quantity * price / value if value > 0 else 0.0
         if target == prev_target and abs(current - target) <= self._band:
             return
-        qty = int(target * value / price) - int(h.quantity)
+        qty = int(target * value * (1 - self._buffer) / price) - int(h.quantity)
         if qty != 0:
-            self._intended_qty = int(h.quantity) + qty
+            self._pending_target = target           # split-proof: the fallback re-sizes from the target
             self.market_on_open_order(self._tsla, qty, tag=f'{session} target {target:.2f} A{a:.0f}G{g:.0f}B{b:.0f}P{p:.0f}')
 
     def _check_unfilled(self):
-        if self._intended_qty is None:
+        if self._pending_target is None:
             return
-        for o in self.transactions.get_open_orders(self._tsla):
+        open_orders = self.transactions.get_open_orders(self._tsla)
+        if not open_orders:
+            self._send_fallback()
+            return
+        self._fallback_armed = True                 # finished in on_order_event once every cancel is confirmed
+        for o in open_orders:
             self.transactions.cancel_order(o.id)
-        diff = self._intended_qty - int(self.portfolio[self._tsla].quantity)
+
+    def _send_fallback(self):
+        price = float(self.securities[self._tsla].price)
+        value = float(self.portfolio.total_portfolio_value)
+        diff = int(self._pending_target * value * (1 - self._buffer) / price) - int(self.portfolio[self._tsla].quantity) if price > 0 else 0
+        self._pending_target = None
         if diff != 0:
             self.market_order(self._tsla, diff, tag='MOO not filled: market-order fallback')
-        self._intended_qty = None
 
     def on_order_event(self, e: OrderEvent):
         if e.status == OrderStatus.FILLED:
             self._fills.append((self.time.isoformat(), str(e.symbol), float(e.fill_quantity), float(e.fill_price),
                                 float(e.order_fee.value.amount)))
+        if (self._fallback_armed and e.symbol == self._tsla and e.status in (OrderStatus.CANCELED, OrderStatus.FILLED, OrderStatus.INVALID)
+                and not self.transactions.get_open_orders(self._tsla)):
+            self._fallback_armed = False
+            if self.securities[self._tsla].exchange.exchange_open:   # never fire it outside regular hours
+                self._send_fallback()           # a late MOO fill shows up in the holdings, so nothing is doubled
+            else:
+                self._pending_target = None     # the next decision takes over
 
     def _record_equity(self, data):
         tbar = data.bars.get(self._tsla)
@@ -247,7 +291,7 @@ class TeslaTrendRegimeEarningsAlgorithm(QCAlgorithm):
 
     def on_end_of_algorithm(self):
         last = max(self._reaction)
-        if (self.time.date() - last).days > 100:
+        if (self.time.date() - last).days > self.EARNINGS_WARN_DAYS:
             self.debug(f'WARNING: last earnings reaction session in the list is {last}: update REACTION_SESSIONS')
         if not self._out:
             return
