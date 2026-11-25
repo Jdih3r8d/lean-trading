@@ -12,7 +12,9 @@ acciones concretas.
 ## Qué hay aquí
 - `.claude/skills/stock-strategy-lab/`: la skill que repite para cualquier acción el estudio completo hecho con TSLA
   (datos contrastados, motor auditado, familias de estrategias con validadores, panel escéptico, verificación en LEAN
-  y respuesta en lenguaje sencillo). Úsala cuando el usuario pida analizar una acción o buscar una estrategia.
+  y respuesta en lenguaje sencillo). Úsala cuando el usuario pida analizar una acción o buscar una estrategia. Tiene
+  también un **modo rebote** rápido y barato: si el usuario manda una captura de su bróker con las acciones que más
+  caen hoy, sigue `references/rebound_mode.md` de la skill (script `scripts/rebound_screen.py`).
 - `Research/TeslaStrategy/`: el estudio de TSLA (README con resultados y riesgos, harness auditado, script de la
   estrategia final y operaciones).
 - `Algorithm.Python/TeslaTrendRegimeEarningsAlgorithm.py`: la estrategia final de TSLA en LEAN, verificada sesión a

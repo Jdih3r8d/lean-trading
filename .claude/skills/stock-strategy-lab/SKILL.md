@@ -1,9 +1,16 @@
 ---
 name: stock-strategy-lab
-description: Investigación de varias horas, con subagentes, de una estrategia de trading diaria y robusta para UNA acción de EE. UU. (cualquier ticker) con datos contrastados, motor auditado, barrido de reglas clásicas, 7 familias (volatilidad, opciones/VIX, resultados y eventos, régimen de mercado, gestión de posición, patrones, ML) con validador independiente, panel escéptico, verificación en LEAN y respuesta en lenguaje sencillo (cuándo comprar y vender, rentabilidad por operación, qué hacer hoy). Úsala cuando pidan encontrar, construir o validar una estrategia o reglas de entrada y salida para una acción concreta, en cualquier idioma, p. ej. "analiza NVDA y dime cuándo comprar", "busca una estrategia ganadora para X", "cuándo entrar y salir de X", "find me a trading strategy for AAPL", "repite el estudio de Tesla con MSFT". NO la uses para cotizaciones, noticias, explicar un indicador (RSI, MACD), un único backtest ya definido por el usuario, carteras de muchos activos, cripto, forex, futuros o trading intradía.
+description: Dos modos para acciones de EE. UU. con datos diarios. (1) Modo rebote, rápido y barato, en el que el usuario envía una captura de su bróker con las acciones que más caen hoy (o una lista de tickers) y se eligen las de más probabilidad de rebote con criterios explícitos, diciendo qué comprar, cuánto, cuándo vender y por qué se descarta el resto. (2) Modo estudio, de varias horas con subagentes, que busca una estrategia robusta para UNA acción con datos contrastados, motor auditado, 7 familias con validadores, panel escéptico y verificación en LEAN, explicada en lenguaje sencillo. Úsala para «analiza NVDA y dime cuándo comprar», «busca una estrategia para X», «¿cuáles de estas que han caído van a rebotar?», capturas de las que más bajan hoy, «find me a trading strategy for AAPL». NO para cotizaciones, noticias sueltas, explicar indicadores, un backtest ya definido, cripto, forex, futuros o intradía.
 ---
 
 # Laboratorio de estrategias para una acción
+
+## Elige el modo primero
+- **Modo rebote** (rápido, barato, sin agentes): el usuario manda una captura o lista de acciones que han caído mucho,
+  o pregunta cuáles rebotarán. Sigue SOLO `references/rebound_mode.md` (script `scripts/rebound_screen.py`) y no
+  sigas leyendo este archivo.
+- **Modo estudio** (varias horas, ~25 agentes): el usuario quiere una estrategia para una acción concreta. Es todo lo
+  que sigue.
 
 Esta skill reproduce, para cualquier acción, el proceso con el que se estudió TSLA en noviembre de 2026. El resultado
 fue una estrategia de tres módulos con un Sharpe fuera de muestra de 1,56 frente a 0,89 de comprar y mantener,
@@ -302,4 +309,5 @@ for l in open(sys.argv[1]):
 | `references/lean.md` | Fase 4: diseño del algoritmo, partes a cambiar en la plantilla, comandos, verificación |
 | `references/final_answer.md` | Antes de la respuesta final al usuario |
 | `references/tsla_case.md` | Ejemplo completo: tiempos, costes, cifras y veredictos por familia |
+| `references/rebound_mode.md` | Modo rebote: captura del bróker → lista de compras con fecha de venta |
 | `assets/reference_lean_algorithm_tsla.py` | Plantilla LEAN revisada dos veces (prefijo `F3_`, a renombrar) |
