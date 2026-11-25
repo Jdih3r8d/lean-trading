@@ -104,6 +104,15 @@ Dos variantes:
    sesiones y con evidencia propia positiva (sus caídas pasadas rebotaron más que su deriva normal). Si el script dice
    `mercado_en_panico=True`, los rebotes suelen ser mayores pero más arriesgados: mismas reglas con la mitad de tamaño.
 5. **Responde** con la plantilla de abajo, en el idioma del usuario, sin jerga.
+6. **Guarda el informe en el repositorio**: el scratchpad y los journals se pierden al cerrar la sesión y el usuario
+   quiere poder volver a leerlo. Crea `Research/Rebotes/AAAA-MM-DD_<nombre>/` con:
+   - `README.md`: la respuesta de la plantilla, con la tabla de la captura (nombre, ticker, bolsa, %), el ranking, qué
+     vigilar, el mercado, advertencias y cómo se hizo (ver `Research/Rebotes/2026-11-25_TopMovers/` como ejemplo);
+   - `detalle_agentes.md`: `python3 <skill_dir>/scripts/rebound_report.py <journal.jsonl> <carpeta>/detalle_agentes.md`
+     (todo lo que devolvió cada agente, sin editar);
+   - `tasas_base.md` si el workflow la generó. Nunca precios descargados de terceros.
+
+   Haz commit y push en la rama de la sesión y dile al usuario dónde verlo (la ruta en GitHub).
 
 ## Plantilla de respuesta
 1. **Veredicto en una frase**: cuántas comprarías de la lista (puede ser ninguna: dilo sin rodeos) y la advertencia
